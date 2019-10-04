@@ -1,0 +1,12 @@
+name: ARGO Connector
+description: Manage translations via ARGO
+package: ARGO
+
+type: module
+core: 8.x
+
+dependencies:
+
+configure:
+
+php: 7.3.4

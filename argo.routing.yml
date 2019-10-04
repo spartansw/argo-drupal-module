@@ -1,0 +1,23 @@
+argo.translation:
+  path: /argo/translation
+  defaults:
+    _title: 'ARGO translation endpoint'
+    _controller: '\Drupal\argo\Controller\Argo::translation'
+  requirements:
+    _permission: 'translate contentEntities using ARGO'
+
+argo.field_definitions:
+  path: /argo/field_definitions
+  defaults:
+    _title: 'ARGO field definition endpoint'
+    _controller: '\Drupal\argo\Controller\Argo::fieldDefinitions'
+  requirements:
+    _permission: 'translate contentEntities using ARGO'
+
+argo.path:
+  path: /argo/path
+  defaults:
+    _title: 'ARGO path resolution endpoint'
+    _controller: '\Drupal\argo\Controller\Argo::entityPath'
+  requirements:
+    _permission: 'translate contentEntities using ARGO'
