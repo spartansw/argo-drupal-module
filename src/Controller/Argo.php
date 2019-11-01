@@ -5,7 +5,6 @@ namespace Drupal\argo\Controller;
 use Drupal\Core\Config\TypedConfigManager;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
-use Drupal\webform\Utility\WebformYaml;
 use Drupal\webform\Utility\WebformElementHelper;
 use LogicException;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,7 +19,7 @@ class Argo extends ControllerBase {
                                    array &$outProps) {
     foreach ($handlerMap as $name => $value) {
       //TODO: add translatable flags to schema and check for them
-      if (['label' => TRUE, 'text' => TRUE][$value['type']]) {
+      if (in_array($value['type'], ['label', 'text'])) {
         $outProps[$name] = [
           'label' => $value['label'],
           'value' => $values[$name],
@@ -30,14 +29,14 @@ class Argo extends ControllerBase {
         //TODO: should be able to add more than just webform.handler dynamic props
         $dynamicMap = $typedConfigManager->getDefinition('webform.handler.' . $values['id'])['mapping'];
         $dynamicProps = [];
-        $this->addHandlerProps($dynamicMap, $values[$name], $typedConfigManager,  $dynamicProps);
+        $this->addHandlerProps($dynamicMap, $values[$name], $typedConfigManager, $dynamicProps);
         $outProps[$name] = $dynamicProps;
       }
     }
   }
 
   public function exportWebform(Request $request) {
-    $invalidMethod = !['GET' => TRUE][$request->getMethod()];
+    $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
       return new Response("", 405);
     }
@@ -50,11 +49,15 @@ class Argo extends ControllerBase {
     $configName = 'webform.webform.' . $webformId;
     $typedConfigManager = \Drupal::service('config.typed');
     $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
-    $properties = [];
+    $outProperties = [];
     foreach ($webformMapping as $name => $value) {
-      //TODO: add translatable flags to schema and check for them
-      if (['label' => TRUE, 'text' => TRUE][$value['type']]) {
-        $properties[$name] = [
+      // Skip properties that need special processing
+      if (in_array($name, ['elements', 'settings', 'handlers'])) {
+        continue;
+      }
+      //TODO: add translatable flags to schema add test for those flags
+      if (in_array($value['type'], ['label', 'text'])) {
+        $outProperties[$name] = [
           'label' => $value['label'],
           'value' => $webform->get($name),
         ];
@@ -62,70 +65,64 @@ class Argo extends ControllerBase {
     }
 
     // Parse elements YAML
-    $elements = Yaml::decode($properties['elements']['value']);
-    foreach ($elements as &$element) {
+    $elementsValue = Yaml::decode($webform->get('elements'));
+    foreach ($elementsValue as &$element) {
       foreach ($element as $name => $value) {
         // Filter untranslatable
-        if ([
-          '#required' => TRUE,
-          '#type' => TRUE,
-          '#test' => TRUE,
-          '#field_overrides' => TRUE,
-        ][$name]) {
+        if (in_array($name, [
+          '#required',
+          '#type',
+          '#test',
+          '#field_overrides',
+        ])) {
           unset($element[$name]);
         }
       }
     }
-
-    $properties['elements']['value'] = $elements;
+    $outElements = [
+      'label' => $webformMapping['elements']['label'],
+      'value' => $elementsValue,
+    ];
 
     // Settings
-    $settings = [];
+    $outSettings = [];
     foreach ($webform->getSettings() as $name => $value) {
       $settingDataType = $webformMapping['settings']['mapping'][$name];
       $settingType = $settingDataType['type'];
       if ($settingType === 'text' || $settingType === 'label') {
-        $settings[$name] = [
+        $outSettings[$name] = [
           'label' => $settingDataType['label'],
           'value' => $value,
         ];
       }
     }
 
-    $properties['settings'] = $settings;
-
     // Handlers
     $handlerConfigs = $webform->getHandlers()->getConfiguration();
-    $handlers = [];
+    $outHandlers = [];
     foreach ($handlerConfigs as $handlerName => $handlerConfig) {
       // Get translatable fields
       $handlerProps = [];
       $handlerMap = $webformMapping['handlers']['sequence']['mapping'];
       $this->addHandlerProps($handlerMap, $handlerConfig, $typedConfigManager, $handlerProps);
-      $handlers[$handlerName] = $handlerProps;
+      $outHandlers[$handlerName] = $handlerProps;
     }
-
-    $properties['handlers'] = $handlers;
 
     $result = [
       'data' => [
         'type' => 'webform--webform',
         'id' => $webformId,
-        'properties' => $properties
+        'properties' => $outProperties,
+        'elements' => $outElements,
+        'settings' => $outSettings,
+        'handlers' => $outHandlers,
       ],
     ];
     return $this->json_response(200, $result);
   }
 
-  /**
-   * @param \Symfony\Component\HttpFoundation\Request $request
-   *
-   * @return \Symfony\Component\HttpFoundation\Response
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   */
   public function translateWebform(Request $request) {
-    $invalidMethod = !['POST' => TRUE][$request->getMethod()];
+    $invalidMethod = $request->getMethod() !== 'POST';
     if ($invalidMethod) {
       return new Response("", 405);
     }
@@ -133,16 +130,17 @@ class Argo extends ControllerBase {
     $requestJson = json_decode($request->getContent(), TRUE);
     $webformId = $requestJson['id'];
     $targetLangcode = $requestJson['targetLangcode'];
-    //    $newTranslation = $requestJson['translation'];
     $newTranslation = [
-      'title' => 'translated title',
-      'description' => 'translated description',
-      'category' => 'translated category',
+      'properties' => [
+        'title' => 'translated title',
+        'description' => 'translated description',
+        'category' => 'translated category',
+      ],
       'elements' => [
         'name' => [
           '#title' => "Your Name (zh-tw)",
-          '#default_value' => "[webform-authenticated-user:display-name]"
-        ]
+          '#default_value' => "[webform-authenticated-user:display-name]",
+        ],
       ],
       'settings' => ['confirmation_message' => "Your message has been sent (zh-tw)"],
       'handlers' => [
@@ -167,11 +165,7 @@ class Argo extends ControllerBase {
     $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
 
     // Basic properties
-    foreach ($newTranslation as $name => $value) {
-      // Skip properties so they can be handled separately
-      if (['settings' => TRUE, 'handlers' => TRUE, 'elements' => TRUE][$name]) {
-        continue;
-      }
+    foreach ($newTranslation['properties'] as $name => $value) {
       $isValidProperty = isset($webformMapping[$name]);
       if ($isValidProperty) {
         $configTranslation->set($name, $value);
@@ -206,7 +200,7 @@ class Argo extends ControllerBase {
   }
 
   public function entityPath(Request $request) {
-    $invalidMethod = !['GET' => TRUE][$request->getMethod()];
+    $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
       return new Response("", 405);
     }
@@ -232,7 +226,7 @@ class Argo extends ControllerBase {
    * methods so I combine both definition types into one response here.
    */
   public function fieldDefinitions(Request $request) {
-    $invalidMethod = !['GET' => TRUE][$request->getMethod()];
+    $invalidMethod = $request->getMethod() !== 'POST';
     if ($invalidMethod) {
       return new Response("", 405);
     }
@@ -284,7 +278,7 @@ class Argo extends ControllerBase {
    * Translates fields on a single entity
    */
   public function translation(Request $request) {
-    $invalidMethod = !['POST' => TRUE][$request->getMethod()];
+    $invalidMethod = $request->getMethod() !== 'POST';
     if ($invalidMethod) {
       return $this->json_response(405, ["error" => "405 Method Not Allowed"]);
     }
