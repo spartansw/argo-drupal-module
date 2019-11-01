@@ -21,3 +21,19 @@ argo.path:
     _controller: '\Drupal\argo\Controller\Argo::entityPath'
   requirements:
     _permission: 'translate contentEntities using ARGO'
+
+argo.export_webform:
+  path: /argo/export_webform
+  defaults:
+    _title: 'Export webform for translation'
+    _controller: '\Drupal\argo\Controller\Argo::exportWebform'
+  requirements:
+    _permission: 'export webforms using ARGO'
+
+argo.translate_webform:
+  path: /argo/translate_webform
+  defaults:
+    _title: 'Translate webform for translation'
+    _controller: '\Drupal\argo\Controller\Argo::translateWebform'
+  requirements:
+    _permission: 'Translate webforms using ARGO'

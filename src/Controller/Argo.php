@@ -2,17 +2,213 @@
 
 namespace Drupal\argo\Controller;
 
+use Drupal\Core\Config\TypedConfigManager;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\webform\Utility\WebformYaml;
+use Drupal\webform\Utility\WebformElementHelper;
 use LogicException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Drupal\Core\Serialization\Yaml;
 
 class Argo extends ControllerBase {
+
+  private function addHandlerProps(array $handlerMap,
+                                   array $values,
+                                   TypedConfigManager $typedConfigManager,
+                                   array &$outProps) {
+    foreach ($handlerMap as $name => $value) {
+      //TODO: add translatable flags to schema and check for them
+      if (['label' => TRUE, 'text' => TRUE][$value['type']]) {
+        $outProps[$name] = [
+          'label' => $value['label'],
+          'value' => $values[$name],
+        ];
+      }
+      elseif (strpos($value['type'], 'webform.handler.') === 0) {
+        //TODO: should be able to add more than just webform.handler dynamic props
+        $dynamicMap = $typedConfigManager->getDefinition('webform.handler.' . $values['id'])['mapping'];
+        $dynamicProps = [];
+        $this->addHandlerProps($dynamicMap, $values[$name], $typedConfigManager,  $dynamicProps);
+        $outProps[$name] = $dynamicProps;
+      }
+    }
+  }
+
+  public function exportWebform(Request $request) {
+    $invalidMethod = !['GET' => TRUE][$request->getMethod()];
+    if ($invalidMethod) {
+      return new Response("", 405);
+    }
+
+    $webformId = $request->query->get('webformId');
+    $webform = \Drupal::entityTypeManager()
+      ->getStorage('webform')
+      ->load($webformId);
+
+    $configName = 'webform.webform.' . $webformId;
+    $typedConfigManager = \Drupal::service('config.typed');
+    $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
+    $properties = [];
+    foreach ($webformMapping as $name => $value) {
+      //TODO: add translatable flags to schema and check for them
+      if (['label' => TRUE, 'text' => TRUE][$value['type']]) {
+        $properties[$name] = [
+          'label' => $value['label'],
+          'value' => $webform->get($name),
+        ];
+      }
+    }
+
+    // Parse elements YAML
+    $elements = Yaml::decode($properties['elements']['value']);
+    foreach ($elements as &$element) {
+      foreach ($element as $name => $value) {
+        // Filter untranslatable
+        if ([
+          '#required' => TRUE,
+          '#type' => TRUE,
+          '#test' => TRUE,
+          '#field_overrides' => TRUE,
+        ][$name]) {
+          unset($element[$name]);
+        }
+      }
+    }
+
+    $properties['elements']['value'] = $elements;
+
+    // Settings
+    $settings = [];
+    foreach ($webform->getSettings() as $name => $value) {
+      $settingDataType = $webformMapping['settings']['mapping'][$name];
+      $settingType = $settingDataType['type'];
+      if ($settingType === 'text' || $settingType === 'label') {
+        $settings[$name] = [
+          'label' => $settingDataType['label'],
+          'value' => $value,
+        ];
+      }
+    }
+
+    $properties['settings'] = $settings;
+
+    // Handlers
+    $handlerConfigs = $webform->getHandlers()->getConfiguration();
+    $handlers = [];
+    foreach ($handlerConfigs as $handlerName => $handlerConfig) {
+      // Get translatable fields
+      $handlerProps = [];
+      $handlerMap = $webformMapping['handlers']['sequence']['mapping'];
+      $this->addHandlerProps($handlerMap, $handlerConfig, $typedConfigManager, $handlerProps);
+      $handlers[$handlerName] = $handlerProps;
+    }
+
+    $properties['handlers'] = $handlers;
+
+    $result = [
+      'data' => [
+        'type' => 'webform--webform',
+        'id' => $webformId,
+        'properties' => $properties
+      ],
+    ];
+    return $this->json_response(200, $result);
+  }
+
+  /**
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *
+   * @return \Symfony\Component\HttpFoundation\Response
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function translateWebform(Request $request) {
+    $invalidMethod = !['POST' => TRUE][$request->getMethod()];
+    if ($invalidMethod) {
+      return new Response("", 405);
+    }
+
+    $requestJson = json_decode($request->getContent(), TRUE);
+    $webformId = $requestJson['id'];
+    $targetLangcode = $requestJson['targetLangcode'];
+    //    $newTranslation = $requestJson['translation'];
+    $newTranslation = [
+      'title' => 'translated title',
+      'description' => 'translated description',
+      'category' => 'translated category',
+      'elements' => [
+        'name' => [
+          '#title' => "Your Name (zh-tw)",
+          '#default_value' => "[webform-authenticated-user:display-name]"
+        ]
+      ],
+      'settings' => ['confirmation_message' => "Your message has been sent (zh-tw)"],
+      'handlers' => [
+        'email_confirmation' => [
+          'label' => 'Email confirmation (zh-tw)',
+          'settings' => ['subject' => '[webform_submission:values:subject:raw] (zh-tw)'],
+        ],
+        'email_notification' => ['label' => 'Email notification (zh-tw)'],
+      ],
+    ];
+
+    $languageManager = \Drupal::service('language_manager');
+    $configName = 'webform.webform.' . $webformId;
+
+    // Set configuration values based on form submission and source values.
+    $configTranslation = $languageManager->getLanguageConfigOverride($targetLangcode, $configName);
+
+    $previousConfigTranslation = $configTranslation->get();
+
+    $configName = 'webform.webform.' . $webformId;
+    $typedConfigManager = \Drupal::service('config.typed');
+    $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
+
+    // Basic properties
+    foreach ($newTranslation as $name => $value) {
+      // Skip properties so they can be handled separately
+      if (['settings' => TRUE, 'handlers' => TRUE, 'elements' => TRUE][$name]) {
+        continue;
+      }
+      $isValidProperty = isset($webformMapping[$name]);
+      if ($isValidProperty) {
+        $configTranslation->set($name, $value);
+      }
+    }
+
+    // Process elements YAML
+    $previousElementsTranslation = Yaml::decode($previousConfigTranslation['elements']);
+    $newElementsTranslation = $newTranslation['elements'];
+    $mergedElementsTranslation = $previousElementsTranslation;
+    WebformElementHelper::merge($mergedElementsTranslation, $newElementsTranslation);
+    $translatedElementsYaml = Yaml::encode($mergedElementsTranslation);
+    $configTranslation->set('elements', $translatedElementsYaml);
+
+    // Settings
+    $previousSettingsTranslation = $previousConfigTranslation['settings'];
+    $newSettingsTranslation = $newTranslation['settings'];
+    $mergedSettingsTranslation = $previousSettingsTranslation;
+    WebformElementHelper::merge($mergedSettingsTranslation, $newSettingsTranslation);
+    $configTranslation->set('settings', $mergedSettingsTranslation);
+
+    // Handlers
+    $previousHandlersTranslation = $previousConfigTranslation['handlers'];
+    $newHandlersTranslation = $newTranslation['handlers'];
+    $mergedHandlersTranslation = $previousHandlersTranslation;
+    WebformElementHelper::merge($mergedHandlersTranslation, $newHandlersTranslation);
+    $configTranslation->set('handlers', $mergedHandlersTranslation);
+
+    $configTranslation->save();
+
+    return $this->ok_json_response();
+  }
 
   public function entityPath(Request $request) {
     $invalidMethod = !['GET' => TRUE][$request->getMethod()];
     if ($invalidMethod) {
-      return $this->json_response(405, ["error" => "405 Method Not Allowed"]);
+      return new Response("", 405);
     }
 
     $nid = $request->query->get('nid');
@@ -38,7 +234,7 @@ class Argo extends ControllerBase {
   public function fieldDefinitions(Request $request) {
     $invalidMethod = !['GET' => TRUE][$request->getMethod()];
     if ($invalidMethod) {
-      return $this->json_response(405, ["error" => "405 Method Not Allowed"]);
+      return new Response("", 405);
     }
 
     $entityTypeId = $request->query->get('entityTypeId');
@@ -58,8 +254,21 @@ class Argo extends ControllerBase {
     foreach ($definitions as $field => $definition) {
       $isRequired = $definition->isRequired();
       $isTranslatable = $definition->isTranslatable();
+
+
+      $label = $definition->getLabel();
+      if ($label instanceof TranslatableMarkup) {
+        $labelStr = $label->getUntranslatedString();
+      }
+      elseif (is_string($label)) {
+        $labelStr = $label;
+      }
+      else {
+        $labelStr = $field;
+      }
       $outDef = [
         'field_name' => $field,
+        'label' => $labelStr,
         'field_type' => $definition->getType(),
         'required' => $isRequired,
         'translatable' => $isTranslatable,
@@ -83,78 +292,117 @@ class Argo extends ControllerBase {
     //TODO: content moderation
 
     $requestJson = json_decode($request->getContent(), TRUE);
-    $id = $requestJson['id'];
+    $entityId = $requestJson['entityId'];
     $targetLangcode = $requestJson['targetLangcode'];
-    $entityTypeId = $requestJson['entityTypeId'];
-    $translation = $requestJson['translation'];
-    $exclusions = $requestJson['exclusions'];
+    $entityType = $requestJson['entityType'];
+    $newTranslations = $requestJson['fieldTranslations'];
 
     $loadResult = \Drupal::entityTypeManager()
-      ->getStorage($entityTypeId)
-      ->loadByProperties(['uuid' => $id]);
+      ->getStorage($entityType)
+      ->loadByProperties(['uuid' => $entityId]);
     if (empty($loadResult)) {
-      //TODO ERROR
+      return $this->error_json_response('INVALID_ENTITY_TYPE', 'Entity type "' . $entityType . '" not found');
     }
     $srcEntity = $loadResult[array_key_first($loadResult)];
 
     // TODO: why is srcEntity->isTranslatable() sometimes false? Translation settings say otherwise
 
-    /*
-     * Existing translations are always removed
-     * and then added, because removing an existing translation prevents you from getting a field
-     * in the target language unless a new translation is added.
-     * Also using addTranslation initialization parameter for convenience
-     * of filling targets with copies of source values before translation.
-     */
-    if ($srcEntity->hasTranslation($targetLangcode)) {
-      $srcEntity->removeTranslation($targetLangcode);
+    if (!$srcEntity->hasTranslation($targetLangcode)) {
+      $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
     }
 
-    // Entity cannot be translated if it is language neutral
     if ($srcEntity->language()->getId() == "und") {
-      return new Response("", 201);
+      return $this->json_response(200, [
+        'code' => 'LANG_UNDEFINED',
+        'message' => "Entity cannot be translated if it is language-neutral",
+      ], FALSE);
     }
 
-    $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
     $entityTranslation = $srcEntity->getTranslation($targetLangcode);
 
 
     //TODO: Why is langcode and status marked as translatable if setting the value is not allowed?
     // This forces us to keep a whitelist of fields that are actually translatable
     $translatableFields = $srcEntity->getTranslatableFields($include_computed = FALSE);
-    foreach ($translatableFields as $sourceField) {
-      $sourceFieldName = $sourceField->getName();
-      $targetField = $entityTranslation->get($sourceFieldName);
 
-      $fieldHasTranslation = isset($translation[$sourceFieldName]);
-      $fieldIsExcluded = isset($exclusions[$sourceFieldName]);
 
-      if ($fieldHasTranslation) {
-        $targetValue = $translation[$sourceFieldName];
-      }
-      elseif ($fieldIsExcluded) {
-        // copy from source
-        $sourceValue = $sourceField->getValue();
-        $targetValue = $sourceValue;
-      }
-      else {
-        $isRequiredField = $sourceField->getFieldDefinition()->isRequired();
-        if ($isRequiredField) {
-          return $this->json_response(500,
-            ["error" => "Field '" . $sourceFieldName . "'' is required but has no translation"]);
+    foreach ($translatableFields as $field) {
+      $fieldName = $field->getName();
+      $translationField = $entityTranslation->get($fieldName);
+
+      $fieldHasNewTranslation = isset($newTranslations[$fieldName]);
+
+      $originalFieldValue = $srcEntity->get($fieldName)->getValue();
+      $fieldHasNoExistingTranslation = $entityTranslation->get($fieldName)->getValue() == NULL;
+
+      if ($fieldHasNewTranslation) {
+        $newFieldValue = $originalFieldValue;
+        foreach ($newTranslations[$fieldName] as $newTranslation) {
+          $valuePath = $newTranslation['valuePath'];
+          $isArrayValue = $valuePath != NULL;
+          if ($isArrayValue) {
+            // Array values can have multiple values.
+            // Figure out which value in field to translate.
+            $splitPath = explode('/', $valuePath);
+            $cur = &$newFieldValue[0];
+            // First node is "", always followed by "value". All nodes after we need to follow to set
+            // field value
+
+            $pathNodes = array_slice($splitPath, 2);
+            $isSerialized = FALSE;
+
+            foreach ($pathNodes as $index => $node) {
+              // Try unserializing if key not found
+              if ($node === 'UNSERIALIZE') {
+                $isSerialized = TRUE;
+                $parsed = unserialize($cur);
+                $target = &$parsed[$pathNodes[$index + 1]];
+                $target = $newTranslation['value'];
+                $cur = serialize($parsed);
+                break;
+              }
+              $cur = &$cur[$node];
+            }
+            if (!$isSerialized) {
+              $cur = $newTranslation['value'];
+            }
+          }
+          else {
+            // Need to wrap value in array?
+            $newFieldValue = $newTranslation['value'];
+            // Non-array values only have 1 value, so continue to next field
+            continue;
+          }
         }
-        continue;
+        $translationField->setValue($newFieldValue);
       }
-
-      $targetField->setValue($targetValue);
+      elseif ($fieldHasNoExistingTranslation) {
+        $translationField->setValue($originalFieldValue);
+      }
     }
 
-    $entityTranslation->save();
+    try {
+      $entityTranslation->save();
+    } catch (\Drupal\Core\Entity\EntityStorageException $e) {
+      return $this->error_json_response(200, $e->getMessage());
+    }
 
-    return new Response("", 201);
+    return $this->ok_json_response();
   }
 
-  private function json_response($statusCode, $json) {
+  private
+  function ok_json_response() {
+    return $this->json_response(200, ['code' => 'OK'], FALSE);
+  }
+
+  private
+  function error_json_response($code, $message) {
+    return $this->json_response(200, ['message' => $message, 'code' => $code], TRUE);
+  }
+
+  private
+  function json_response($statusCode, $json, $error = FALSE) {
+    $json['error'] = $error;
     return new Response(json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), $statusCode,
       ["Content-Type" => "application/json"]);
   }
