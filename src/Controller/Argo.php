@@ -112,12 +112,18 @@ class Argo extends ControllerBase {
       'data' => [
         'type' => 'webform--webform',
         'id' => $webformId,
+        'langcode' => $webform->getLangcode(),
         'properties' => $outProperties,
         'elements' => $outElements,
         'settings' => $outSettings,
         'handlers' => $outHandlers,
       ],
     ];
+
+    // Add hash so clients can check if config has changed
+    $hash = md5(json_encode($result));
+    $result['data']['hash'] = $hash;
+
     return $this->json_response(200, $result);
   }
 
