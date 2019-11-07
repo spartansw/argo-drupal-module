@@ -2,10 +2,19 @@
 
 namespace Drupal\argo\Controller;
 
+use Drupal\config_translation\ConfigMapperInterface;
+use Drupal\Core\Config\Entity\ConfigEntityInterface;
+use Drupal\Core\Config\Schema\Mapping;
+use Drupal\Core\Config\Schema\Sequence;
 use Drupal\Core\Config\TypedConfigManager;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\language\ConfigurableLanguageManagerInterface;
 use Drupal\webform\Utility\WebformElementHelper;
+use Drupal\config_translation\ConfigEntityMapper;
+use Drupal\config_translation\ConfigNamesMapper;
+use Drupal\Core\TypedData\TraversableTypedDataInterface;
 use LogicException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -35,6 +44,107 @@ class Argo extends ControllerBase {
     }
   }
 
+  public function getConfigTranslatableProperties(ConfigNamesMapper $mapper) {
+    /** @var \Drupal\Core\Config\TypedConfigManagerInterface $typed_config */
+    $typed_config = \Drupal::service('config.typed');
+
+    $properties = [];
+    foreach ($mapper->getConfigNames() as $name) {
+      $schema = $typed_config->get($name);
+      $properties[$name] = $this->getTranslatableProperties($schema, NULL);
+    }
+    return $properties;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  public function getTranslatableProperties(TraversableTypedDataInterface $schema, $base_key) {
+    $properties = [];
+    $definition = $schema->getDataDefinition();
+    if (isset($definition['form_element_class'])) {
+      foreach ($schema as $key => $element) {
+        $element_key = isset($base_key) ? "$base_key.$key" : $key;
+        $definition = $element->getDataDefinition();
+
+        if ($element instanceof TraversableTypedDataInterface) {
+          $properties = array_merge($properties, $this->getTranslatableProperties($element, $element_key));
+        }
+        else {
+          if (isset($definition['form_element_class'])) {
+            $properties[] = $element_key;
+          }
+        }
+      }
+    }
+    return $properties;
+  }
+
+  public function getConfigSourceData($webform, ConfigNamesMapper $mapper, array $webformMapping) {
+    $properties = $this->getConfigTranslatableProperties($mapper);
+    $values = [];
+    foreach ($properties as $config_name => $config_properties) {
+      $config = \Drupal::configFactory()->getEditable($config_name);
+      foreach ($config_properties as $property) {
+
+        // TODO: labels
+        $mapper_manager = \Drupal::service('plugin.manager.config_translation.mapper');
+        $mapper = $mapper_manager->createInstance('webform');
+        $mapper->setEntity($webform);
+        //        $mappers = $mapper_manager->getMappers();
+        //        $mapper2 = clone ($mappers[$webform->getEntityTypeId() . '.config']);
+        //        $mapper2->setEntity($webform);
+
+        $typedConfigManager = \Drupal::service('config.typed');
+        $definitions = [];
+        $configNames = $mapper->getConfigNames();
+        foreach ($configNames as $name) {
+          $schema = $typedConfigManager->get($name);
+          $rootLabel = $schema->getDataDefinition()->getLabel();
+          $elements = $schema->getElements();
+          foreach ($elements as $element) {
+            if (is_a($element, Mapping::class) || is_a($element, Sequence::class)) {
+              foreach ($element->getElements() as $inner) {
+                //TODO: recurse
+              }
+            }
+            else {
+              $label = $element->getDataDefinition()->getLabel();
+            }
+          }
+        }
+        $typedConfigManager = \Drupal::service('config.typed');
+        $schema = $typedConfigManager->get($config_name);
+        $definition = $schema->getDataDefinition();
+        $label = $definition->getLabel();
+        //TODO END
+
+
+        $values[$config_name][$property] = [
+          'label' => $label,
+          'value' => $config->get($property),
+        ];
+      }
+    }
+    return $values;
+  }
+
+  public function saveConfigTargetData(LanguageManagerInterface $languageManager, ConfigNamesMapper $mapper, $langcode, $data) {
+    $names = $mapper->getConfigNames();
+    if (!empty($names)) {
+      foreach ($names as $name) {
+        $config_translation = $languageManager->getLanguageConfigOverride($langcode, $name);
+
+        foreach ($data as $name => $properties) {
+          foreach ($properties as $property => $value) {
+            $config_translation->set($property, html_entity_decode($value . ' (' . $langcode . ')'));
+          }
+          $config_translation->save();
+        }
+      }
+    }
+  }
+
   public function exportWebform(Request $request) {
     $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
@@ -45,6 +155,7 @@ class Argo extends ControllerBase {
     $webform = \Drupal::entityTypeManager()
       ->getStorage('webform')
       ->load($webformId);
+
 
     $configName = 'webform.webform.' . $webformId;
     $typedConfigManager = \Drupal::service('config.typed');
@@ -64,25 +175,25 @@ class Argo extends ControllerBase {
       }
     }
 
-    // Parse elements YAML
-    $elementsValue = Yaml::decode($webform->get('elements'));
-    foreach ($elementsValue as &$element) {
-      foreach ($element as $name => $value) {
-        // Filter untranslatable
-        if (in_array($name, [
-          '#required',
-          '#type',
-          '#test',
-          '#field_overrides',
-        ])) {
-          unset($element[$name]);
-        }
-      }
-    }
+    // Elements
+    $translationManager = \Drupal::service('webform.translation_manager');
+    $sourceElements = $translationManager->getSourceElements($webform);
     $outElements = [
       'label' => $webformMapping['elements']['label'],
-      'value' => $elementsValue,
+      'value' => $sourceElements,
     ];
+
+    $mapper_manager = \Drupal::service('plugin.manager.config_translation.mapper');
+    $mappers = $mapper_manager->getMappers();
+    $mapper = clone ($mappers[$webform->getEntityTypeId()]);
+    $mapper->setEntity($webform);
+    $props = $this->getConfigTranslatableProperties($mapper);
+    $configSourceData = $this->getConfigSourceData($webform, $mapper, $webformMapping);
+
+    // For webforms, decode elements property and only include translatable fields
+    if (strpos($configName, 'webform.webform.') === 0) {
+      $configSourceData[$configName]['elements'] = $sourceElements;
+    }
 
     // Settings
     $outSettings = [];
@@ -127,6 +238,28 @@ class Argo extends ControllerBase {
     return $this->json_response(200, $result);
   }
 
+  public function saveTargetData(array $mappers, ConfigurableLanguageManagerInterface $languageManager, ConfigEntityInterface $entity, $langcode, $data) {
+    //    if ($entity->getEntityTypeId() == 'field_config') {
+    //      $id = $entity->getTargetEntityTypeId();
+    //      $mapper = clone ($this->mappers[$id . '_fields']);
+    //      $mapper->setEntity($entity);
+    //    }
+    //    else {
+    $mapper = clone ($mappers[$entity->getEntityTypeId()]);
+    $mapper->setEntity($entity);
+    //    }
+    // For retro-compatibility, if there is only one config name, we expand our
+    // data.
+    $names = $mapper->getConfigNames();
+    if (count($names) == 1) {
+      $expanded[$names[0]] = $data;
+    }
+    else {
+      $expanded = $data;
+    }
+    $this->saveConfigTargetData($languageManager, $mapper, $langcode, $expanded);
+  }
+
   public function translateWebform(Request $request) {
     $invalidMethod = $request->getMethod() !== 'POST';
     if ($invalidMethod) {
@@ -159,48 +292,63 @@ class Argo extends ControllerBase {
     ];
 
     $languageManager = \Drupal::service('language_manager');
-    $configName = 'webform.webform.' . $webformId;
+    //    $configName = 'webform.webform.' . $webformId;
 
     // Set configuration values based on form submission and source values.
-    $configTranslation = $languageManager->getLanguageConfigOverride($targetLangcode, $configName);
+    //    $configTranslation = $languageManager->getLanguageConfigOverride($targetLangcode, $configName);
 
-    $previousConfigTranslation = $configTranslation->get();
+    //    $previousConfigTranslation = $configTranslation->get();
 
-    $configName = 'webform.webform.' . $webformId;
-    $typedConfigManager = \Drupal::service('config.typed');
-    $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
+    //    $configName = 'webform.webform.' . $webformId;
+    //    $typedConfigManager = \Drupal::service('config.typed');
+    //    $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
 
-    // Basic properties
-    foreach ($newTranslation['properties'] as $name => $value) {
-      $isValidProperty = isset($webformMapping[$name]);
-      if ($isValidProperty) {
-        $configTranslation->set($name, $value);
-      }
-    }
+    // Lingotek method
+    $webform = \Drupal::entityTypeManager()
+      ->getStorage('webform')
+      ->load($webformId);
 
-    // Process elements YAML
-    $previousElementsTranslation = Yaml::decode($previousConfigTranslation['elements']);
-    $newElementsTranslation = $newTranslation['elements'];
-    $mergedElementsTranslation = $previousElementsTranslation;
-    WebformElementHelper::merge($mergedElementsTranslation, $newElementsTranslation);
-    $translatedElementsYaml = Yaml::encode($mergedElementsTranslation);
-    $configTranslation->set('elements', $translatedElementsYaml);
+    $mapper_manager = \Drupal::service('plugin.manager.config_translation.mapper');
+    $mappers = $mapper_manager->getMappers();
+    $mapper = clone ($mappers[$webform->getEntityTypeId()]);
+    $mapper->setEntity($webform);
+    $data = $this->getConfigSourceData($mapper);
+    $expanded = $data[$mapper->getConfigNames()[0]];
+    $this->saveTargetData($mappers, $languageManager, $webform, $targetLangcode, $expanded);
 
-    // Settings
-    $previousSettingsTranslation = $previousConfigTranslation['settings'];
-    $newSettingsTranslation = $newTranslation['settings'];
-    $mergedSettingsTranslation = $previousSettingsTranslation;
-    WebformElementHelper::merge($mergedSettingsTranslation, $newSettingsTranslation);
-    $configTranslation->set('settings', $mergedSettingsTranslation);
-
-    // Handlers
-    $previousHandlersTranslation = $previousConfigTranslation['handlers'];
-    $newHandlersTranslation = $newTranslation['handlers'];
-    $mergedHandlersTranslation = $previousHandlersTranslation;
-    WebformElementHelper::merge($mergedHandlersTranslation, $newHandlersTranslation);
-    $configTranslation->set('handlers', $mergedHandlersTranslation);
-
-    $configTranslation->save();
+    // end lingotek
+    //
+    //    // Basic properties
+    //    foreach ($newTranslation['properties'] as $name => $value) {
+    //      $isValidProperty = isset($webformMapping[$name]);
+    //      if ($isValidProperty) {
+    //        $configTranslation->set($name, $value);
+    //      }
+    //    }
+    //
+    //    // Process elements YAML
+    //    $previousElementsTranslation = Yaml::decode($previousConfigTranslation['elements']);
+    //    $newElementsTranslation = $newTranslation['elements'];
+    //    $mergedElementsTranslation = $previousElementsTranslation;
+    //    WebformElementHelper::merge($mergedElementsTranslation, $newElementsTranslation);
+    //    $translatedElementsYaml = Yaml::encode($mergedElementsTranslation);
+    //    $configTranslation->set('elements', $translatedElementsYaml);
+    //
+    //    // Settings
+    //    $previousSettingsTranslation = $previousConfigTranslation['settings'];
+    //    $newSettingsTranslation = $newTranslation['settings'];
+    //    $mergedSettingsTranslation = $previousSettingsTranslation;
+    //    WebformElementHelper::merge($mergedSettingsTranslation, $newSettingsTranslation);
+    //    $configTranslation->set('settings', $mergedSettingsTranslation);
+    //
+    //    // Handlers
+    //    $previousHandlersTranslation = $previousConfigTranslation['handlers'];
+    //    $newHandlersTranslation = $newTranslation['handlers'];
+    //    $mergedHandlersTranslation = $previousHandlersTranslation;
+    //    WebformElementHelper::merge($mergedHandlersTranslation, $newHandlersTranslation);
+    //    $configTranslation->set('handlers', $mergedHandlersTranslation);
+    //
+    //    $configTranslation->save();
 
     return $this->ok_json_response();
   }
