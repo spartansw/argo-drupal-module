@@ -3,10 +3,13 @@
 namespace Drupal\argo\Controller;
 
 use Drupal\config_translation\ConfigMapperInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\Entity\ConfigEntityInterface;
+use Drupal\Core\Config\Schema\ArrayElement;
 use Drupal\Core\Config\Schema\Mapping;
 use Drupal\Core\Config\Schema\Sequence;
 use Drupal\Core\Config\TypedConfigManager;
+use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
@@ -21,6 +24,20 @@ use Symfony\Component\HttpFoundation\Response;
 use Drupal\Core\Serialization\Yaml;
 
 class Argo extends ControllerBase {
+
+  public function getTerms($vocabId) {
+    $vocabulary = \Drupal::entityTypeManager()
+      ->getStorage('taxonomy_term')
+      ->loadTree($vocabId, 0, NULL, TRUE);
+    $terms = [];
+    foreach ($vocabulary as $term) {
+      $terms[] = [
+        'id' => $term->id(),
+        'name' => $term->getName(),
+      ];
+    }
+    return $terms;
+  }
 
   private function addHandlerProps(array $handlerMap,
                                    array $values,
@@ -80,45 +97,15 @@ class Argo extends ControllerBase {
     return $properties;
   }
 
-  public function getConfigSourceData($webform, ConfigNamesMapper $mapper, array $webformMapping) {
+  public function getConfigSourceData(ConfigNamesMapper $mapper, TypedConfigManagerInterface $typedConfigManager,
+                                      ConfigFactoryInterface $configFactory) {
     $properties = $this->getConfigTranslatableProperties($mapper);
     $values = [];
     foreach ($properties as $config_name => $config_properties) {
-      $config = \Drupal::configFactory()->getEditable($config_name);
+      $config = $configFactory->get($config_name);
       foreach ($config_properties as $property) {
-
-        // TODO: labels
-        $mapper_manager = \Drupal::service('plugin.manager.config_translation.mapper');
-        $mapper = $mapper_manager->createInstance('webform');
-        $mapper->setEntity($webform);
-        //        $mappers = $mapper_manager->getMappers();
-        //        $mapper2 = clone ($mappers[$webform->getEntityTypeId() . '.config']);
-        //        $mapper2->setEntity($webform);
-
-        $typedConfigManager = \Drupal::service('config.typed');
-        $definitions = [];
-        $configNames = $mapper->getConfigNames();
-        foreach ($configNames as $name) {
-          $schema = $typedConfigManager->get($name);
-          $rootLabel = $schema->getDataDefinition()->getLabel();
-          $elements = $schema->getElements();
-          foreach ($elements as $element) {
-            if (is_a($element, Mapping::class) || is_a($element, Sequence::class)) {
-              foreach ($element->getElements() as $inner) {
-                //TODO: recurse
-              }
-            }
-            else {
-              $label = $element->getDataDefinition()->getLabel();
-            }
-          }
-        }
-        $typedConfigManager = \Drupal::service('config.typed');
-        $schema = $typedConfigManager->get($config_name);
-        $definition = $schema->getDataDefinition();
-        $label = $definition->getLabel();
-        //TODO END
-
+        $typedConfig = $typedConfigManager->get($config_name);
+        $label = $this->getPropertyLabel($property, $typedConfig);
 
         $values[$config_name][$property] = [
           'label' => $label,
@@ -127,6 +114,15 @@ class Argo extends ControllerBase {
       }
     }
     return $values;
+  }
+
+  private function getPropertyLabel($property, $typedConfig) {
+    $elementNames = explode('.', $property);
+    $element = $typedConfig;
+    foreach ($elementNames as $elementName) {
+      $element = $element->getElements()[$elementName];
+    }
+    return $element->getDataDefinition()->getLabel();
   }
 
   public function saveConfigTargetData(LanguageManagerInterface $languageManager, ConfigNamesMapper $mapper, $langcode, $data) {
@@ -156,80 +152,37 @@ class Argo extends ControllerBase {
       ->getStorage('webform')
       ->load($webformId);
 
-
-    $configName = 'webform.webform.' . $webformId;
-    $typedConfigManager = \Drupal::service('config.typed');
-    $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
-    $outProperties = [];
-    foreach ($webformMapping as $name => $value) {
-      // Skip properties that need special processing
-      if (in_array($name, ['elements', 'settings', 'handlers'])) {
-        continue;
-      }
-      //TODO: add translatable flags to schema add test for those flags
-      if (in_array($value['type'], ['label', 'text'])) {
-        $outProperties[$name] = [
-          'label' => $value['label'],
-          'value' => $webform->get($name),
-        ];
-      }
-    }
-
-    // Elements
-    $translationManager = \Drupal::service('webform.translation_manager');
-    $sourceElements = $translationManager->getSourceElements($webform);
-    $outElements = [
-      'label' => $webformMapping['elements']['label'],
-      'value' => $sourceElements,
-    ];
-
     $mapper_manager = \Drupal::service('plugin.manager.config_translation.mapper');
     $mappers = $mapper_manager->getMappers();
     $mapper = clone ($mappers[$webform->getEntityTypeId()]);
     $mapper->setEntity($webform);
-    $props = $this->getConfigTranslatableProperties($mapper);
-    $configSourceData = $this->getConfigSourceData($webform, $mapper, $webformMapping);
 
+    $typedConfigManager = \Drupal::service('config.typed');
+
+    $configFactory = \Drupal::configFactory();
+    $configSourceData = $this->getConfigSourceData($mapper, $typedConfigManager, $configFactory);
+
+    // Elements
+    $translationManager = \Drupal::service('webform.translation_manager');
+    $sourceElements = $translationManager->getSourceElements($webform);
+
+    $configName = $webform->getConfigDependencyName();
+    $elements = &$configSourceData[$configName]['elements'];
     // For webforms, decode elements property and only include translatable fields
     if (strpos($configName, 'webform.webform.') === 0) {
-      $configSourceData[$configName]['elements'] = $sourceElements;
+      $elements = $sourceElements;
     }
 
-    // Settings
-    $outSettings = [];
-    foreach ($webform->getSettings() as $name => $value) {
-      $settingDataType = $webformMapping['settings']['mapping'][$name];
-      $settingType = $settingDataType['type'];
-      if ($settingType === 'text' || $settingType === 'label') {
-        $outSettings[$name] = [
-          'label' => $settingDataType['label'],
-          'value' => $value,
-        ];
-      }
-    }
-
-    // Handlers
-    $handlerConfigs = $webform->getHandlers()->getConfiguration();
-    $outHandlers = [];
-    foreach ($handlerConfigs as $handlerName => $handlerConfig) {
-      // Get translatable fields
-      $handlerProps = [];
-      $handlerMap = $webformMapping['handlers']['sequence']['mapping'];
-      $this->addHandlerProps($handlerMap, $handlerConfig, $typedConfigManager, $handlerProps);
-      $outHandlers[$handlerName] = $handlerProps;
-    }
+    $this->addTerms($elements, $webform);
 
     $result = [
       'data' => [
         'type' => 'webform--webform',
         'id' => $webformId,
         'langcode' => $webform->getLangcode(),
-        'properties' => $outProperties,
-        'elements' => $outElements,
-        'settings' => $outSettings,
-        'handlers' => $outHandlers,
       ],
     ];
+    $result['data'] = array_merge($result['data'], $configSourceData);
 
     // Add hash so clients can check if config has changed
     $hash = md5(json_encode($result));
@@ -312,7 +265,11 @@ class Argo extends ControllerBase {
     $mappers = $mapper_manager->getMappers();
     $mapper = clone ($mappers[$webform->getEntityTypeId()]);
     $mapper->setEntity($webform);
-    $data = $this->getConfigSourceData($mapper);
+
+    $typedConfigManager = \Drupal::service('config.typed');
+
+    $configFactory = \Drupal::configFactory();
+    $data = $this->getConfigSourceData($mapper, $typedConfigManager, $configFactory);
     $expanded = $data[$mapper->getConfigNames()[0]];
     $this->saveTargetData($mappers, $languageManager, $webform, $targetLangcode, $expanded);
 
@@ -553,5 +510,22 @@ class Argo extends ControllerBase {
     $json['error'] = $error;
     return new Response(json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), $statusCode,
       ["Content-Type" => "application/json"]);
+  }
+
+  /**
+   * @param $elements
+   * @param \Drupal\Core\Entity\EntityInterface $webform
+   * @param $element
+   */
+  private function addTerms(&$elements, \Drupal\Core\Entity\EntityInterface $webform) {
+    foreach ($elements as $name => &$element) {
+      $fullElement = $webform->getElement($name);
+      if ($fullElement['#type'] === 'webform_term_select') {
+        $vocabId = $fullElement['#vocabulary'];
+        $element['vocabulary'] = ['name' => $vocabId];
+        $terms = $this->getTerms($vocabId);
+        $element['vocabulary'] = array_merge($element['vocabulary'], ['terms' => $terms]);
+      }
+    }
   }
 }
