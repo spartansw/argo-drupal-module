@@ -160,14 +160,16 @@ class Argo extends ControllerBase {
     $typedConfigManager = \Drupal::service('config.typed');
 
     $configFactory = \Drupal::configFactory();
-    $configSourceData = $this->getConfigSourceData($mapper, $typedConfigManager, $configFactory);
+    $configName = $webform->getConfigDependencyName();
+    $configSourceData = $this->getConfigSourceData($mapper, $typedConfigManager, $configFactory)[$configName];
 
     // Elements
     $translationManager = \Drupal::service('webform.translation_manager');
     $sourceElements = $translationManager->getSourceElements($webform);
 
-    $configName = $webform->getConfigDependencyName();
-    $elements = &$configSourceData[$configName]['elements'];
+    $elements = $configSourceData[$configName]['elements'];
+    unset($configSourceData[$configName]['elements']);
+
     // For webforms, decode elements property and only include translatable fields
     if (strpos($configName, 'webform.webform.') === 0) {
       $elements = $sourceElements;
@@ -177,16 +179,71 @@ class Argo extends ControllerBase {
 
     $result = [
       'data' => [
-        'type' => 'webform--webform',
+//        'type' => 'webform--webform',
         'id' => $webformId,
-        'langcode' => $webform->getLangcode(),
+//        'langcode' => $webform->getLangcode(),
       ],
     ];
-    $result['data'] = array_merge($result['data'], $configSourceData);
+
+    function propertiesJson(array $configSourceData) {
+      $result = [];
+      foreach ($configSourceData as $name => $property) {
+        if ($name === 'elements') {
+          continue;
+        }
+
+        $result[] = [
+          'name' => $name,
+          'label' => $property['label'],
+          'value' => $property['value'],
+        ];
+      }
+      return $result;
+    }
+
+    function elementsJson(array $elements) {
+      $result = [];
+      foreach ($elements as $name => $element) {
+        $properties = [];
+        $vocabulary = NULL;
+        foreach ($element as $elName => $value) {
+          if ($elName === 'vocabulary') {
+            $vocabulary = [
+              'name' => $value['name'],
+              'terms' => $value['terms']
+            ];
+            continue;
+          }
+
+          $properties[] = [
+            'name' => $elName,
+            'value' => $value
+          ];
+        }
+
+        $newResult = [
+          'name' => $name,
+          'properties' => $properties
+        ];
+
+        if ($vocabulary !== NULL) {
+          $newResult['vocabulary'] = $vocabulary;
+        }
+
+        $result[] = $newResult;
+      }
+      return $result;
+    }
+
+    $result['data']['configs'][] = [
+      'name' => $configName,
+      'properties' => propertiesJson($configSourceData),
+      'elements' => elementsJson($elements),
+    ];
 
     // Add hash so clients can check if config has changed
     $hash = md5(json_encode($result));
-    $result['data']['hash'] = $hash;
+//    $result['data']['hash'] = $hash;
 
     return $this->json_response(200, $result);
   }
@@ -274,6 +331,10 @@ class Argo extends ControllerBase {
     $this->saveTargetData($mappers, $languageManager, $webform, $targetLangcode, $expanded);
 
     // end lingotek
+
+    // Save terms
+
+
     //
     //    // Basic properties
     //    foreach ($newTranslation['properties'] as $name => $value) {
@@ -428,8 +489,8 @@ class Argo extends ControllerBase {
 
     //TODO: Why is langcode and status marked as translatable if setting the value is not allowed?
     // This forces us to keep a whitelist of fields that are actually translatable
-    $translatableFields = $srcEntity->getTranslatableFields($include_computed = FALSE);
 
+    $translatableFields = $srcEntity->getTranslatableFields($include_computed = FALSE);
 
     foreach ($translatableFields as $field) {
       $fieldName = $field->getName();
