@@ -30,6 +30,14 @@ argo.export_webform:
   requirements:
     _permission: 'export webforms using ARGO'
 
+argo.webform_metadata:
+  path: /argo/webform_metadata
+  defaults:
+    _title: 'Export webform metadata'
+    _controller: '\Drupal\argo\Controller\Argo::webformMetadata'
+  requirements:
+    _permission: 'export webforms using ARGO'
+
 argo.translate_webform:
   path: /argo/translate_webform
   defaults:

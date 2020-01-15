@@ -14,6 +14,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\language\ConfigurableLanguageManagerInterface;
+use Drupal\webform\Entity\Webform;
 use Drupal\webform\Utility\WebformElementHelper;
 use Drupal\config_translation\ConfigEntityMapper;
 use Drupal\config_translation\ConfigNamesMapper;
@@ -125,20 +126,81 @@ class Argo extends ControllerBase {
     return $element->getDataDefinition()->getLabel();
   }
 
-  public function saveConfigTargetData(LanguageManagerInterface $languageManager, ConfigNamesMapper $mapper, $langcode, $data) {
-    $names = $mapper->getConfigNames();
-    if (!empty($names)) {
-      foreach ($names as $name) {
-        $config_translation = $languageManager->getLanguageConfigOverride($langcode, $name);
+  public function saveConfigTargetData(Webform $webform, array $translation, LanguageManagerInterface $languageManager, ConfigNamesMapper $mapper, $langcode, $data) {
+//    $names = $mapper->getConfigNames();
+//    if (!empty($names)) {
+//      foreach ($names as $name) {
+//        $config_translation = $languageManager->getLanguageConfigOverride($langcode, $name);
+//
+//        foreach ($data as $name => $properties) {
+//          foreach ($properties as $property => $value) {
+////            $config_translation->set($property, html_entity_decode($value . ' (' . $langcode . ')'));
+//            $value;
+//          }
+//          $config_translation->save();
+//        }
+//      }
+//    }
+    $config = $translation['data']['configs'][0];
+    $name = $config['name'];
+    $config_translation = $languageManager->getLanguageConfigOverride($langcode, $name);
 
-        foreach ($data as $name => $properties) {
-          foreach ($properties as $property => $value) {
-            $config_translation->set($property, html_entity_decode($value . ' (' . $langcode . ')'));
+    foreach ($config['properties'] as $property) {
+      $config_translation->set($property['name'], html_entity_decode($property['value']));
+      $config_translation->save();
+    }
+
+    $translationManager = \Drupal::service('webform.translation_manager');
+    $sourceElements = $translationManager->getSourceElements($webform);
+
+    foreach ($config['elements'] as $element) {
+      foreach ($element['properties'] as $property) {
+        $sourceElements[$element['name']][$property['name']] = $property['value'];
+      }
+
+      $vocabulary = $element['vocabulary'];
+      if (isset($vocabulary)) {
+        // handle vocab
+        $vocabId = $vocabulary['name'];
+        $srcVocab = \Drupal::entityTypeManager()
+          ->getStorage('taxonomy_term')
+          ->loadTree($vocabId, 0, NULL, TRUE);
+        foreach ($vocabulary['terms'] as $term) {
+          $id = $term['id'];
+          $name = $term['name'];
+          // TODO
+          $srcTerm = NULL;
+          foreach ($srcVocab as $i => $src) {
+            if ($src->id() === $id) {
+              $srcTerm = $src;
+              break;
+            }
           }
-          $config_translation->save();
+
+          if ($srcTerm === NULL) {
+            continue;
+          }
+
+          if (!$srcTerm->hasTranslation($langcode)) {
+            $srcTerm->addTranslation($langcode);
+          }
+
+          if ($srcTerm->language()->getId() == "und") {
+            continue;
+          }
+          $termTranslation = $srcTerm->getTranslation($langcode);
+//          $termTranslation = $srcTerm;
+//          $termTranslation->setName(substr($name, 0, strlen($name) - strlen(' (zh-tw)')));
+          $termTranslation->setName($name);
+          $termTranslation->save();
         }
       }
     }
+
+    // Process elements YAML
+    $translatedElementsYaml = Yaml::encode($sourceElements);
+    $config_translation->set('elements', $translatedElementsYaml);
+    $config_translation->save();
   }
 
   public function exportWebform(Request $request) {
@@ -148,107 +210,38 @@ class Argo extends ControllerBase {
     }
 
     $webformId = $request->query->get('webformId');
-    $webform = \Drupal::entityTypeManager()
-      ->getStorage('webform')
-      ->load($webformId);
-
-    $mapper_manager = \Drupal::service('plugin.manager.config_translation.mapper');
-    $mappers = $mapper_manager->getMappers();
-    $mapper = clone ($mappers[$webform->getEntityTypeId()]);
-    $mapper->setEntity($webform);
-
-    $typedConfigManager = \Drupal::service('config.typed');
-
-    $configFactory = \Drupal::configFactory();
-    $configName = $webform->getConfigDependencyName();
-    $configSourceData = $this->getConfigSourceData($mapper, $typedConfigManager, $configFactory)[$configName];
-
-    // Elements
-    $translationManager = \Drupal::service('webform.translation_manager');
-    $sourceElements = $translationManager->getSourceElements($webform);
-
-    $elements = $configSourceData[$configName]['elements'];
-    unset($configSourceData[$configName]['elements']);
-
-    // For webforms, decode elements property and only include translatable fields
-    if (strpos($configName, 'webform.webform.') === 0) {
-      $elements = $sourceElements;
-    }
-
-    $this->addTerms($elements, $webform);
-
-    $result = [
-      'data' => [
-//        'type' => 'webform--webform',
-        'id' => $webformId,
-//        'langcode' => $webform->getLangcode(),
-      ],
-    ];
-
-    function propertiesJson(array $configSourceData) {
-      $result = [];
-      foreach ($configSourceData as $name => $property) {
-        if ($name === 'elements') {
-          continue;
-        }
-
-        $result[] = [
-          'name' => $name,
-          'label' => $property['label'],
-          'value' => $property['value'],
-        ];
-      }
-      return $result;
-    }
-
-    function elementsJson(array $elements) {
-      $result = [];
-      foreach ($elements as $name => $element) {
-        $properties = [];
-        $vocabulary = NULL;
-        foreach ($element as $elName => $value) {
-          if ($elName === 'vocabulary') {
-            $vocabulary = [
-              'name' => $value['name'],
-              'terms' => $value['terms']
-            ];
-            continue;
-          }
-
-          $properties[] = [
-            'name' => $elName,
-            'value' => $value
-          ];
-        }
-
-        $newResult = [
-          'name' => $name,
-          'properties' => $properties
-        ];
-
-        if ($vocabulary !== NULL) {
-          $newResult['vocabulary'] = $vocabulary;
-        }
-
-        $result[] = $newResult;
-      }
-      return $result;
-    }
-
-    $result['data']['configs'][] = [
-      'name' => $configName,
-      'properties' => propertiesJson($configSourceData),
-      'elements' => elementsJson($elements),
-    ];
-
-    // Add hash so clients can check if config has changed
-    $hash = md5(json_encode($result));
-//    $result['data']['hash'] = $hash;
+    $webform = $this->loadWebform($webformId);
+    list($elements, $result) = $this->webformExport($webform);
 
     return $this->json_response(200, $result);
   }
 
-  public function saveTargetData(array $mappers, ConfigurableLanguageManagerInterface $languageManager, ConfigEntityInterface $entity, $langcode, $data) {
+  public function webformMetadata(Request $request) {
+    $invalidMethod = $request->getMethod() !== 'GET';
+    if ($invalidMethod) {
+      return new Response("", 405);
+    }
+
+    $webformId = $request->query->get('webformId');
+    $webform = $this->loadWebform($webformId);
+    list($elements, $export) = $this->webformExport($webform);
+
+    // Add hash so clients can check if config has changed
+    $hash = md5(json_encode($export));
+
+    $result = [
+      'data' => [
+        'id' => $webform->id(),
+        'hash' => $hash,
+        'langcode' => $webform->getLangcode(),
+        'title' => $webform->label(),
+      ]
+    ];
+
+    return $this->json_response(200, $result);
+  }
+
+  public function saveTargetData(Webform $webform, array $translation, array $mappers, ConfigurableLanguageManagerInterface $languageManager, ConfigEntityInterface $entity, $langcode, $data) {
     //    if ($entity->getEntityTypeId() == 'field_config') {
     //      $id = $entity->getTargetEntityTypeId();
     //      $mapper = clone ($this->mappers[$id . '_fields']);
@@ -267,7 +260,7 @@ class Argo extends ControllerBase {
     else {
       $expanded = $data;
     }
-    $this->saveConfigTargetData($languageManager, $mapper, $langcode, $expanded);
+    $this->saveConfigTargetData($webform, $translation, $languageManager, $mapper, $langcode, $expanded);
   }
 
   public function translateWebform(Request $request) {
@@ -277,8 +270,8 @@ class Argo extends ControllerBase {
     }
 
     $requestJson = json_decode($request->getContent(), TRUE);
-    $webformId = $requestJson['id'];
-    $targetLangcode = $requestJson['targetLangcode'];
+    $webformId = $requestJson['data']['id'];
+    $targetLangcode = $requestJson['data']['targetLangcode'];
     $newTranslation = [
       'properties' => [
         'title' => 'translated title',
@@ -314,9 +307,7 @@ class Argo extends ControllerBase {
     //    $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
 
     // Lingotek method
-    $webform = \Drupal::entityTypeManager()
-      ->getStorage('webform')
-      ->load($webformId);
+    $webform = $this->loadWebform($webformId);
 
     $mapper_manager = \Drupal::service('plugin.manager.config_translation.mapper');
     $mappers = $mapper_manager->getMappers();
@@ -328,7 +319,7 @@ class Argo extends ControllerBase {
     $configFactory = \Drupal::configFactory();
     $data = $this->getConfigSourceData($mapper, $typedConfigManager, $configFactory);
     $expanded = $data[$mapper->getConfigNames()[0]];
-    $this->saveTargetData($mappers, $languageManager, $webform, $targetLangcode, $expanded);
+    $this->saveTargetData($webform, $requestJson, $mappers, $languageManager, $webform, $targetLangcode, $expanded);
 
     // end lingotek
 
@@ -398,7 +389,7 @@ class Argo extends ControllerBase {
    * methods so I combine both definition types into one response here.
    */
   public function fieldDefinitions(Request $request) {
-    $invalidMethod = $request->getMethod() !== 'POST';
+    $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
       return new Response("", 405);
     }
@@ -589,4 +580,119 @@ class Argo extends ControllerBase {
       }
     }
   }
+
+  /**
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *
+   * @return array
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  private function webformExport(Webform $webform): array {
+
+
+    $mapper_manager = \Drupal::service('plugin.manager.config_translation.mapper');
+    $mappers = $mapper_manager->getMappers();
+    $mapper = clone ($mappers[$webform->getEntityTypeId()]);
+    $mapper->setEntity($webform);
+
+    $typedConfigManager = \Drupal::service('config.typed');
+
+    $configFactory = \Drupal::configFactory();
+    $configName = $webform->getConfigDependencyName();
+    $configSourceData = $this->getConfigSourceData($mapper, $typedConfigManager, $configFactory)[$configName];
+
+    // Elements
+    $translationManager = \Drupal::service('webform.translation_manager');
+    $sourceElements = $translationManager->getSourceElements($webform);
+
+    $elements = $configSourceData[$configName]['elements'];
+    unset($configSourceData[$configName]['elements']);
+
+    // For webforms, decode elements property and only include translatable fields
+    if (strpos($configName, 'webform.webform.') === 0) {
+      $elements = $sourceElements;
+    }
+
+    $this->addTerms($elements, $webform);
+
+    $result = [
+      'data' => [
+        //        'type' => 'webform--webform',
+        'id' => $webform->id(),
+        //        'langcode' => $webform->getLangcode(),
+      ],
+    ];
+
+    function propertiesJson(array $configSourceData) {
+      $result = [];
+      foreach ($configSourceData as $name => $property) {
+        if ($name === 'elements') {
+          continue;
+        }
+
+        $result[] = [
+          'name' => $name,
+          'label' => $property['label'],
+          'value' => $property['value'],
+        ];
+      }
+      return $result;
+    }
+
+    function elementsJson(array $elements) {
+      $result = [];
+      foreach ($elements as $name => $element) {
+        $properties = [];
+        $vocabulary = NULL;
+        foreach ($element as $elName => $value) {
+          if ($elName === 'vocabulary') {
+            $vocabulary = [
+              'name' => $value['name'],
+              'terms' => $value['terms']
+            ];
+            continue;
+          }
+
+          $properties[] = [
+            'name' => $elName,
+            'value' => $value
+          ];
+        }
+
+        $newResult = [
+          'name' => $name,
+          'properties' => $properties
+        ];
+
+        if ($vocabulary !== NULL) {
+          $newResult['vocabulary'] = $vocabulary;
+        }
+
+        $result[] = $newResult;
+      }
+      return $result;
+    }
+
+    $result['data']['configs'][] = [
+      'name' => $configName,
+      'properties' => propertiesJson($configSourceData),
+      'elements' => elementsJson($elements),
+    ];
+    return [$elements, $result];
+  }
+
+  /**
+   * @param $webformId
+   *
+   * @return \Drupal\Core\Entity\EntityInterface|null
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  private function loadWebform($webformId) {
+    $webform = \Drupal::entityTypeManager()
+      ->getStorage('webform')
+      ->load($webformId);
+    return $webform;
+}
 }
