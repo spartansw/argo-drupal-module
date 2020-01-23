@@ -572,7 +572,7 @@ class Argo extends ControllerBase {
   private function addTerms(&$elements, \Drupal\Core\Entity\EntityInterface $webform) {
     foreach ($elements as $name => &$element) {
       $fullElement = $webform->getElement($name);
-      if ($fullElement['#type'] === 'webform_term_select') {
+      if ($fullElement['#type'] === 'tableau_webform_term_select') {
         $vocabId = $fullElement['#vocabulary'];
         $element['vocabulary'] = ['name' => $vocabId];
         $terms = $this->getTerms($vocabId);
