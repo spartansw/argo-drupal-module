@@ -460,13 +460,13 @@ class Argo extends ControllerBase {
     if (empty($loadResult)) {
       return $this->error_json_response('INVALID_ENTITY_TYPE', 'Entity type "' . $entityType . '" not found');
     }
-    $srcEntity = $loadResult[array_key_first($loadResult)];
 
-    // TODO: why is srcEntity->isTranslatable() sometimes false? Translation settings say otherwise
+      foreach ($loadResult as $key => $unused) {
+          $firstResultKey = $key;
+          break;
+      }
 
-    if (!$srcEntity->hasTranslation($targetLangcode)) {
-      $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
-    }
+      $srcEntity = $loadResult[$firstResultKey];
 
     if ($srcEntity->language()->getId() == "und") {
       return $this->json_response(200, [
