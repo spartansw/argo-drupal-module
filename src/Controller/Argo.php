@@ -11,6 +11,8 @@ use Drupal\Core\Config\Schema\Sequence;
 use Drupal\Core\Config\TypedConfigManager;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Language\LanguageInterface;
+use Drupal\Core\Language\LanguageManager;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\language\ConfigurableLanguageManagerInterface;
@@ -468,11 +470,17 @@ class Argo extends ControllerBase {
 
       $srcEntity = $loadResult[$firstResultKey];
 
-    if ($srcEntity->language()->getId() == "und") {
+    // TODO: why is srcEntity->isTranslatable() sometimes false? Translation settings say otherwise
+
+    if ($srcEntity->language()->getId() === LanguageInterface::LANGCODE_NOT_SPECIFIED) {
       return $this->json_response(200, [
         'code' => 'LANG_UNDEFINED',
         'message' => "Entity cannot be translated if it is language-neutral",
       ], FALSE);
+    }
+
+    if (!$srcEntity->hasTranslation($targetLangcode)) {
+      $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
     }
 
     $entityTranslation = $srcEntity->getTranslation($targetLangcode);
