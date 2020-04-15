@@ -1,0 +1,4 @@
+services:
+  argo.default:
+    class: Drupal\argo\ArgoService
+    arguments: ['@entity_type.manager']
