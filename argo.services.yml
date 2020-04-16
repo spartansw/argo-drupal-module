@@ -1,4 +1,7 @@
 services:
-  argo.default:
+  argo.service:
     class: Drupal\argo\ArgoService
-    arguments: ['@entity_type.manager']
+    arguments: ['@entity_type.manager', '@argo.export']
+  argo.export:
+    class: Drupal\argo\ContentEntityExport
+    arguments: []

@@ -141,7 +141,7 @@ class ContentEntityExport {
           'description' => $dataDefinition->getDescription(),
           'items' => $itemsOut,
         ];
-        $translationOut[fields][] = $fieldOut;
+        $translationOut['fields'][] = $fieldOut;
       }
     }
     $translationOut['warnings'] = $warnings;
