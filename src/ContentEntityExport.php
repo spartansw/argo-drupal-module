@@ -53,7 +53,7 @@ class ContentEntityExport {
     foreach ($translatableFields as $fieldName => $field) {
       $hasFieldOut = FALSE;
       $itemsOut = [];
-      /* @var \Drupal\Core\Field\FieldItemInterface $fieldItem. */
+      /* @var \Drupal\Core\Field\FieldItemInterface $fieldItem . */
       foreach ($field as $itemNumber => $fieldItem) {
         $hasItemOut = FALSE;
         $propDefs = $fieldItem->getDataDefinition()->getPropertyDefinitions();
@@ -71,8 +71,7 @@ class ContentEntityExport {
                 if (isset($stringTypes[$dataType])) {
                   // TODO: remove null values?
                   $outValue = $value;
-                }
-                elseif ($dataType === 'metatag') {
+                } elseif ($dataType === 'metatag') {
                   $metatag = unserialize($value);
                   $outValue = [];
                   foreach ($metatag as $tagName => $tagValue) {
@@ -80,10 +79,9 @@ class ContentEntityExport {
                       $outValue[$tagName] = $tagValue;
                     }
                   }
-                }
-                else {
+                } else {
                   if ($dataType === 'map') {
-                    /* @var \Drupal\Core\TypedData\MapDataDefinition $mapDataDef. */
+                    /* @var \Drupal\Core\TypedData\MapDataDefinition $mapDataDef . */
                     $mapDataDef = $prop->getDataDefinition();
                     $mapPropDefs = $mapDataDef->getPropertyDefinitions();
                     if (count($mapPropDefs) === 0) {
@@ -91,8 +89,7 @@ class ContentEntityExport {
                         // TODO: recurse finding strings.
                         $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has no prop defs for values');
                       }
-                    }
-                    else {
+                    } else {
                       // TODO: get defs.
                       $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has defs but are not read');
                     }
@@ -104,13 +101,11 @@ class ContentEntityExport {
                           $outValue = $value;
                         }
                       }
-                    }
-                    else {
+                    } else {
                       $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown map type');
                       $outValue = $value;
                     }
-                  }
-                  else {
+                  } else {
                     $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown data type');
                     $outValue = $value;
                   }
@@ -145,6 +140,20 @@ class ContentEntityExport {
       }
     }
     $translationOut['warnings'] = $warnings;
+
+    $references = [];
+    $traversableTypes = [
+      'paragraph' => TRUE,
+    ];
+    foreach ($entity->referencedEntities() as $referencedEntity) {
+      if (isset($traversableTypes[$referencedEntity->getEntityTypeId()])) {
+        $references[] = [
+          'entityType' => $referencedEntity->getEntityTypeId(),
+          'uuid' => $referencedEntity->uuid(),
+        ];
+      }
+    }
+    $translationOut['references'] = $references;
     return $translationOut;
   }
 

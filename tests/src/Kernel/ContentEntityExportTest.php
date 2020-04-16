@@ -7,6 +7,7 @@ use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
+use Drupal\paragraphs\Entity\Paragraph;
 
 /**
  * Argo export test.
@@ -24,6 +25,8 @@ class ContentEntityExportTest extends KernelTestBase {
     'user',
     'field',
     'system',
+    'entity_reference_revisions',
+    'paragraphs',
   ];
 
   /**
@@ -41,6 +44,13 @@ class ContentEntityExportTest extends KernelTestBase {
 
     $this->installEntitySchema('user');
     $this->installEntitySchema('node');
+    $this->installEntitySchema('paragraph');
+
+    $nodeType = NodeType::create([
+      'type' => 'article',
+      'label' => 'Article',
+    ]);
+    $nodeType->save();
 
     $this->contentEntityExport = \Drupal::service('argo.export');
   }
@@ -51,12 +61,6 @@ class ContentEntityExportTest extends KernelTestBase {
   public function testNodeExports() {
     $expectedTitle = 'Test';
     $expectedString = 'String value';
-
-    $nodeType = NodeType::create([
-      'type' => 'article',
-      'label' => 'Article',
-    ]);
-    $nodeType->save();
 
     $fieldStorage = FieldStorageConfig::create([
       'field_name' => 'field_test',
@@ -125,6 +129,52 @@ class ContentEntityExportTest extends KernelTestBase {
    */
   public function testExtractsMetatags() {
     $this->assertTrue(FALSE);
+  }
+
+  /**
+   * Only traversable references.
+   */
+  public function testOnlyTraversableReferences() {
+    $field_storage = FieldStorageConfig::create([
+      'field_name' => 'field_page_sections',
+      'entity_type' => 'node',
+      'type' => 'entity_reference_revisions',
+      'settings' => [
+        'target_type' => 'paragraph',
+      ],
+    ]);
+    $field_storage->save();
+    $field = FieldConfig::create([
+      'field_storage' => $field_storage,
+      'bundle' => 'article',
+    ]);
+    $field->save();
+
+    $child = Paragraph::create([
+      'type' => 'text_passage',
+      'title' => 'Child node',
+    ]);
+    $child->save();
+
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Parent node',
+      'field_page_sections' => [
+        [
+          'target_id' => $child->id(),
+          'target_revision_id' => $child->getRevisionId(),
+        ],
+      ],
+    ]);
+    $node->save();
+
+    $actualResult = $this->contentEntityExport->export($node);
+
+    $references = $actualResult['references'];
+    $this->assertEqual(count($references), 1);
+    $reference = $references[0];
+    $this->assertEqual($reference['entityType'], 'paragraph');
+    $this->assertEqual($reference['uuid'], $child->uuid());
   }
 
 }
