@@ -2,6 +2,7 @@
 
 namespace Drupal\argo\Controller;
 
+use Drupal\argo\ArgoServiceInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\argo\ContentEntityExport;
@@ -21,6 +22,8 @@ use Drupal\webform\Entity\Webform;
 use Drupal\config_translation\ConfigNamesMapper;
 use Drupal\Core\TypedData\TraversableTypedDataInterface;
 use LogicException;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Drupal\Core\Serialization\Yaml;
@@ -28,7 +31,47 @@ use Drupal\Core\Serialization\Yaml;
 /**
  *
  */
-class Argo extends ControllerBase {
+class ArgoController extends ControllerBase {
+
+  /**
+   * @var ArgoServiceInterface
+   */
+  private $argoService;
+
+  /**
+   * Argo constructor.
+   * @param ArgoServiceInterface $argoService
+   */
+  public function __construct(ArgoServiceInterface $argoService) {
+    $this->argoService = $argoService;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('argo.service')
+    );
+  }
+
+  /**
+   * Exports a content entity for translation.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function exportContentEntity(Request $request) {
+    $entityType = $request->get('type');
+    $uuid = $request->get('uuid');
+
+    $export = $this->argoService->export($entityType, $uuid);
+
+    return new JsonResponse($export);
+  }
 
   /**
    *
@@ -253,30 +296,6 @@ class Argo extends ControllerBase {
     list($elements, $result) = $this->webformExport($webform);
 
     return $this->json_response(200, $result);
-  }
-
-  /**
-   *
-   */
-  public function contentEntity(Request $request) {
-    $invalidMethod = $request->getMethod() !== 'GET';
-    if ($invalidMethod) {
-      return new Response("", 405);
-    }
-
-    $entityType = $request->query->get('type');
-    $entityId = $request->query->get('uuid');
-
-    $loadResult = \Drupal::entityTypeManager()
-      ->getStorage($entityType)
-      ->loadByProperties(['uuid' => $entityId]);
-    if (empty($loadResult)) {
-      return $this->error_json_response('INVALID_ENTITY_TYPE', 'Entity type "' . $entityType . '" not found');
-    }
-    $entity = $loadResult[array_keys($loadResult)[0]];
-
-    $export = (new ContentEntityExport())->export($entity);
-    return $this->json_response(200, $export);
   }
 
   /**

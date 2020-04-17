@@ -85,8 +85,9 @@ class ContentEntityExportTest extends KernelTestBase {
 
     $actualResult = $this->contentEntityExport->export($node);
 
-    $this->assertEqual($actualResult['fields'][0]['items'][0]['properties'][0]['value'], $expectedTitle);
-    $this->assertEqual($actualResult['fields'][1]['items'][0]['properties'][0]['value'], $expectedString);
+    $items = $actualResult['items'];
+    $this->assertEqual($items[0]['value'], $expectedTitle);
+    $this->assertEqual($items[1]['value'], $expectedString);
   }
 
   /**

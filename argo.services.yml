@@ -5,3 +5,6 @@ services:
   argo.export:
     class: Drupal\argo\ContentEntityExport
     arguments: []
+  argo.translate:
+    class: Drupal\argo\ContentEntityTranslate
+    arguments: ['@typed_data.data_fetcher']

@@ -6,7 +6,7 @@ use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 
 /**
- *
+ * Export Content Entities.
  */
 class ContentEntityExport {
 
@@ -66,20 +66,29 @@ class ContentEntityExport {
               $hasFieldOut = TRUE;
               $hasItemOut = TRUE;
               $prop = $fieldItem->get($propName);
+              $propertyPath = $prop->getPropertyPath();
               $value = $prop->getValue();
               if ($value !== NULL) {
                 if (isset($stringTypes[$dataType])) {
                   // TODO: remove null values?
                   $outValue = $value;
-                } elseif ($dataType === 'metatag') {
+                }
+                elseif ($dataType === 'metatag') {
                   $metatag = unserialize($value);
-                  $outValue = [];
                   foreach ($metatag as $tagName => $tagValue) {
                     if (is_string($tagValue)) {
-                      $outValue[$tagName] = $tagValue;
+                      $propertiesOut[] = [
+                        'name' => $propName,
+                        'label' => (string) $propDef->getLabel(),
+                        'type' => $dataType,
+                        'value' => $tagValue,
+                        'path' => $propertyPath . '.' . $tagName,
+                      ];
                     }
                   }
-                } else {
+                  continue;
+                }
+                else {
                   if ($dataType === 'map') {
                     /* @var \Drupal\Core\TypedData\MapDataDefinition $mapDataDef . */
                     $mapDataDef = $prop->getDataDefinition();
@@ -89,7 +98,8 @@ class ContentEntityExport {
                         // TODO: recurse finding strings.
                         $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has no prop defs for values');
                       }
-                    } else {
+                    }
+                    else {
                       // TODO: get defs.
                       $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has defs but are not read');
                     }
@@ -101,20 +111,23 @@ class ContentEntityExport {
                           $outValue = $value;
                         }
                       }
-                    } else {
+                    }
+                    else {
                       $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown map type');
                       $outValue = $value;
                     }
-                  } else {
+                  }
+                  else {
                     $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown data type');
                     $outValue = $value;
                   }
                 }
                 $propertiesOut[] = [
                   'name' => $propName,
-                  'label' => $propDef->getLabel(),
+                  'label' => (string) $propDef->getLabel(),
                   'type' => $dataType,
                   'value' => $outValue,
+                  'path' => $propertyPath,
                 ];
               }
             }
@@ -132,7 +145,7 @@ class ContentEntityExport {
         $fieldOut = [
           'name' => $fieldName,
           'type' => $dataDefinition->getType(),
-          'label' => $dataDefinition->getLabel(),
+          'label' => (string) $dataDefinition->getLabel(),
           'description' => $dataDefinition->getDescription(),
           'items' => $itemsOut,
         ];
@@ -154,6 +167,9 @@ class ContentEntityExport {
       }
     }
     $translationOut['references'] = $references;
+
+    $translationOut['items'] = $this->flattenExport($translationOut['fields']);
+    unset($translationOut['fields']);
     return $translationOut;
   }
 
@@ -170,6 +186,30 @@ class ContentEntityExport {
       'type' => $type,
       'description' => $msg,
     ];
+  }
+
+  /**
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *
+   * @return array
+   */
+  public function flattenExport(array $exportFields): array {
+    $flattened = [];
+
+    foreach ($exportFields as $field) {
+      foreach ($field['items'] as $item) {
+        foreach ($item['properties'] as $property) {
+          $flattened[] = [
+            'field' => $field['label'],
+            'property' => $property['label'],
+            'propertyType' => $property['type'],
+            'path' => $property['path'],
+            'value' => $property['value'],
+          ];
+        }
+      }
+    }
+    return $flattened;
   }
 
 }

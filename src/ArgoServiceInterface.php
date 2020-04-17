@@ -7,4 +7,9 @@ namespace Drupal\argo;
  */
 interface ArgoServiceInterface {
 
+  /**
+   *
+   */
+  public function export(string $entityType, string $uuid);
+
 }

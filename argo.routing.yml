@@ -2,7 +2,7 @@ argo.translation:
   path: /argo/translation
   defaults:
     _title: 'ARGO translation endpoint'
-    _controller: '\Drupal\argo\Controller\Argo::translation'
+    _controller: '\Drupal\argo\Controller\ArgoController::translation'
   requirements:
     _permission: 'translate contentEntities using ARGO'
 
@@ -10,7 +10,7 @@ argo.field_definitions:
   path: /argo/field_definitions
   defaults:
     _title: 'ARGO field definition endpoint'
-    _controller: '\Drupal\argo\Controller\Argo::fieldDefinitions'
+    _controller: '\Drupal\argo\Controller\ArgoController::fieldDefinitions'
   requirements:
     _permission: 'translate contentEntities using ARGO'
 
@@ -18,7 +18,7 @@ argo.path:
   path: /argo/path
   defaults:
     _title: 'ARGO path resolution endpoint'
-    _controller: '\Drupal\argo\Controller\Argo::entityPath'
+    _controller: '\Drupal\argo\Controller\ArgoController::entityPath'
   requirements:
     _permission: 'translate contentEntities using ARGO'
 
@@ -27,7 +27,7 @@ argo.fetchIdsAndResetLog:
 #  methods: [POST]
   defaults:
     _title: 'Fetch and Reset deleted entity IDs'
-    _controller: '\Drupal\argo\Controller\Argo::fetchIdsAndResetLog'
+    _controller: '\Drupal\argo\Controller\ArgoController::fetchIdsAndResetLog'
 #    callback: 'fetchIdsAndResetLog'
   requirements:
     _permission: 'translate contentEntities using ARGO'
@@ -36,7 +36,7 @@ argo.export_webform:
   path: /argo/export_webform
   defaults:
     _title: 'Export webform for translation'
-    _controller: '\Drupal\argo\Controller\Argo::exportWebform'
+    _controller: '\Drupal\argo\Controller\ArgoController::exportWebform'
   requirements:
     _permission: 'export webforms using ARGO'
 
@@ -44,23 +44,25 @@ argo.test:
   path: /argo/testAll
   defaults:
     _title: 'Try exporting all content entities'
-    _controller: '\Drupal\argo\Controller\Argo::testAll'
+    _controller: '\Drupal\argo\Controller\ArgoController::testAll'
   requirements:
     _permission: 'test'
 
 argo.export:
-  path: /argo/content-entity
+  path: /argo/content-entity/{type}/{uuid}/export
   defaults:
     _title: 'Export content entity for translation'
-    _controller: '\Drupal\argo\Controller\Argo::contentEntity'
+    _controller: '\Drupal\argo\Controller\ArgoController::exportContentEntity'
   requirements:
+    _format: 'json'
     _permission: 'Export content entity'
+  methods: ['GET']
 
 argo.webform_metadata:
   path: /argo/webform_metadata
   defaults:
     _title: 'Export webform metadata'
-    _controller: '\Drupal\argo\Controller\Argo::webformMetadata'
+    _controller: '\Drupal\argo\Controller\ArgoController::webformMetadata'
   requirements:
     _permission: 'export webforms using ARGO'
 
@@ -68,6 +70,6 @@ argo.translate_webform:
   path: /argo/translate_webform
   defaults:
     _title: 'Translate webform for translation'
-    _controller: '\Drupal\argo\Controller\Argo::translateWebform'
+    _controller: '\Drupal\argo\Controller\ArgoController::translateWebform'
   requirements:
     _permission: 'Translate webforms using ARGO'
