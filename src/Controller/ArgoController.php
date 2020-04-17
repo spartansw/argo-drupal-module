@@ -4,7 +4,6 @@ namespace Drupal\argo\Controller;
 
 use Drupal\argo\ArgoServiceInterface;
 use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Entity\EntityStorageException;
 use Drupal\argo\ContentEntityExport;
 
 use Drupal\Core\Database\Database;
@@ -14,7 +13,6 @@ use Drupal\Core\Config\TypedConfigManager;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Entity\ContentEntityTypeInterface;
-use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\language\ConfigurableLanguageManagerInterface;
@@ -34,13 +32,14 @@ use Drupal\Core\Serialization\Yaml;
 class ArgoController extends ControllerBase {
 
   /**
-   * @var ArgoServiceInterface
+   * @var \Drupal\argo\ArgoServiceInterface
    */
   private $argoService;
 
   /**
    * Argo constructor.
-   * @param ArgoServiceInterface $argoService
+   *
+   * @param \Drupal\argo\ArgoServiceInterface $argoService
    */
   public function __construct(ArgoServiceInterface $argoService) {
     $this->argoService = $argoService;
@@ -71,6 +70,28 @@ class ArgoController extends ControllerBase {
     $export = $this->argoService->export($entityType, $uuid);
 
     return new JsonResponse($export);
+  }
+
+  /**
+   * Translates fields on a single entity.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function translateContentEntity(Request $request) {
+    $entityType = $request->get('type');
+    $uuid = $request->get('uuid');
+    $translation = json_decode($request->getContent(), TRUE);
+
+    $this->argoService->translate($entityType, $uuid, $translation);
+
+    return new JsonResponse();
   }
 
   /**
@@ -194,9 +215,8 @@ class ArgoController extends ControllerBase {
    */
   public function fetchIdsAndResetLog(Request $request) {
     $conn = Database::getConnection();
-    $deleted = $conn->query("SELECT * FROM argo_entity_deletion")->fetchAll();
+    $deleted = $conn->query('SELECT * FROM argo_entity_deletion')->fetchAll();
     // $conn->delete('argo_entity_deletion')->execute();
-
     return $this->json_response(200, [
       'deleted' => $deleted,
     ]);
@@ -264,7 +284,7 @@ class ArgoController extends ControllerBase {
             $srcTerm->addTranslation($langcode);
           }
 
-          if ($srcTerm->language()->getId() == "und") {
+          if ($srcTerm->language()->getId() == 'und') {
             continue;
           }
           $termTranslation = $srcTerm->getTranslation($langcode);
@@ -288,7 +308,7 @@ class ArgoController extends ControllerBase {
   public function exportWebform(Request $request) {
     $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
-      return new Response("", 405);
+      return new Response('', 405);
     }
 
     $webformId = $request->query->get('webformId');
@@ -304,7 +324,7 @@ class ArgoController extends ControllerBase {
   public function testAll(Request $request) {
     $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
-      return new Response("", 405);
+      return new Response('', 405);
     }
 
     $entityType = $request->query->get('type');
@@ -321,7 +341,6 @@ class ArgoController extends ControllerBase {
       ->getStorage($entityType);
     // $ids = $conn->query('SELECT uuid FROM node ORDER BY uuid ASC LIMIT ' . $limit . ' OFFSET ' . $offset)->fetchAll();
     //    $ids = [];
-
     $export = [];
 
     $contentEntityTypes = [];
@@ -351,7 +370,7 @@ class ArgoController extends ControllerBase {
   public function webformMetadata(Request $request) {
     $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
-      return new Response("", 405);
+      return new Response('', 405);
     }
 
     $webformId = $request->query->get('webformId');
@@ -404,7 +423,7 @@ class ArgoController extends ControllerBase {
   public function translateWebform(Request $request) {
     $invalidMethod = $request->getMethod() !== 'POST';
     if ($invalidMethod) {
-      return new Response("", 405);
+      return new Response('', 405);
     }
 
     $requestJson = json_decode($request->getContent(), TRUE);
@@ -418,11 +437,11 @@ class ArgoController extends ControllerBase {
       ],
       'elements' => [
         'name' => [
-          '#title' => "Your Name (zh-tw)",
-          '#default_value' => "[webform-authenticated-user:display-name]",
+          '#title' => 'Your Name (zh-tw)',
+          '#default_value' => '[webform-authenticated-user:display-name]',
         ],
       ],
-      'settings' => ['confirmation_message' => "Your message has been sent (zh-tw)"],
+      'settings' => ['confirmation_message' => 'Your message has been sent (zh-tw)'],
       'handlers' => [
         'email_confirmation' => [
           'label' => 'Email confirmation (zh-tw)',
@@ -434,16 +453,12 @@ class ArgoController extends ControllerBase {
 
     $languageManager = \Drupal::service('language_manager');
     // $configName = 'webform.webform.' . $webformId;
-
     // Set configuration values based on form submission and source values.
     //    $configTranslation = $languageManager->getLanguageConfigOverride($targetLangcode, $configName);.
-
     // $previousConfigTranslation = $configTranslation->get();
-
     // $configName = 'webform.webform.' . $webformId;
     //    $typedConfigManager = \Drupal::service('config.typed');
     //    $webformMapping = $typedConfigManager->getDefinition($configName)['mapping'];
-
     // Lingotek method.
     $webform = $this->loadWebform($webformId);
 
@@ -460,9 +475,7 @@ class ArgoController extends ControllerBase {
     $this->saveTargetData($webform, $requestJson, $mappers, $languageManager, $webform, $targetLangcode, $expanded);
 
     // End lingotek.
-
     // Save terms.
-
     //
     //    // Basic properties
     //    foreach ($newTranslation['properties'] as $name => $value) {
@@ -495,7 +508,6 @@ class ArgoController extends ControllerBase {
     //    $configTranslation->set('handlers', $mergedHandlersTranslation);
     //
     //    $configTranslation->save();
-
     return $this->ok_json_response();
   }
 
@@ -505,7 +517,7 @@ class ArgoController extends ControllerBase {
   public function entityPath(Request $request) {
     $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
-      return new Response("", 405);
+      return new Response('', 405);
     }
 
     $nodeIds = explode(',', $request->query->get('nodeIds'));
@@ -540,7 +552,7 @@ class ArgoController extends ControllerBase {
   public function fieldDefinitions(Request $request) {
     $invalidMethod = $request->getMethod() !== 'GET';
     if ($invalidMethod) {
-      return new Response("", 405);
+      return new Response('', 405);
     }
 
     $entityTypeId = $request->query->get('entityTypeId');
@@ -587,122 +599,6 @@ class ArgoController extends ControllerBase {
   }
 
   /**
-   * Translates fields on a single entity.
-   */
-  public function translation(Request $request) {
-    $invalidMethod = $request->getMethod() !== 'POST';
-    if ($invalidMethod) {
-      return $this->json_response(405, ["error" => "405 Method Not Allowed"]);
-    }
-
-    // TODO: content moderation.
-
-    $requestJson = json_decode($request->getContent(), TRUE);
-    $entityId = $requestJson['entityId'];
-    $targetLangcode = $requestJson['targetLangcode'];
-    $entityType = $requestJson['entityType'];
-    $newTranslations = $requestJson['fieldTranslations'];
-
-    $loadResult = \Drupal::entityTypeManager()
-      ->getStorage($entityType)
-      ->loadByProperties(['uuid' => $entityId]);
-    if (empty($loadResult)) {
-      return $this->error_json_response('INVALID_ENTITY_TYPE', 'Entity type "' . $entityType . '" not found');
-    }
-
-    foreach ($loadResult as $key => $unused) {
-      $firstResultKey = $key;
-      break;
-    }
-
-    $srcEntity = $loadResult[$firstResultKey];
-
-    // TODO: why is srcEntity->isTranslatable() sometimes false? Translation settings say otherwise.
-
-    if ($srcEntity->language()->getId() === LanguageInterface::LANGCODE_NOT_SPECIFIED) {
-      return $this->json_response(200, [
-        'code' => 'LANG_UNDEFINED',
-        'message' => "Entity cannot be translated if it is language-neutral",
-      ], FALSE);
-    }
-
-    if (!$srcEntity->hasTranslation($targetLangcode)) {
-      $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
-    }
-
-    $entityTranslation = $srcEntity->getTranslation($targetLangcode);
-
-    // TODO: Why is langcode and status marked as translatable if setting the value is not allowed?
-    // This forces us to keep a whitelist of fields that are actually translatable.
-
-    $translatableFields = $srcEntity->getTranslatableFields($include_computed = FALSE);
-
-    foreach ($translatableFields as $field) {
-      $fieldName = $field->getName();
-      $translationField = $entityTranslation->get($fieldName);
-
-      $fieldHasNewTranslation = isset($newTranslations[$fieldName]);
-
-      $originalFieldValue = $srcEntity->get($fieldName)->getValue();
-      $fieldHasNoExistingTranslation = $entityTranslation->get($fieldName)->getValue() == NULL;
-
-      if ($fieldHasNewTranslation) {
-        $newFieldValue = $originalFieldValue;
-        foreach ($newTranslations[$fieldName] as $newTranslation) {
-          $valuePath = $newTranslation['valuePath'];
-          $isArrayValue = $valuePath != NULL;
-          if ($isArrayValue) {
-            // Array values can have multiple values.
-            // Figure out which value in field to translate.
-            $splitPath = explode('/', $valuePath);
-            $cur = &$newFieldValue[0];
-            // First node is "", always followed by "value". All nodes after we need to follow to set
-            // field value.
-
-            $pathNodes = array_slice($splitPath, 2);
-            $isSerialized = FALSE;
-
-            foreach ($pathNodes as $index => $node) {
-              // Try unserializing if key not found.
-              if ($node === 'UNSERIALIZE') {
-                $isSerialized = TRUE;
-                $parsed = unserialize($cur);
-                $target = &$parsed[$pathNodes[$index + 1]];
-                $target = $newTranslation['value'];
-                $cur = serialize($parsed);
-                break;
-              }
-              $cur = &$cur[$node];
-            }
-            if (!$isSerialized) {
-              $cur = $newTranslation['value'];
-            }
-          }
-          else {
-            // Need to wrap value in array?
-            $newFieldValue = $newTranslation['value'];
-            // Non-array values only have 1 value, so continue to next field.
-            continue;
-          }
-        }
-        $translationField->setValue($newFieldValue);
-      }
-      elseif ($fieldHasNoExistingTranslation) {
-        $translationField->setValue($originalFieldValue);
-      }
-    }
-
-    try {
-      $entityTranslation->save();
-    }
-    catch (EntityStorageException $e) {
-      return $this->error_json_response(200, $e->getMessage());
-    }
-
-    return $this->ok_json_response();
-  }
-
-  /**
    *
    */
   public function ok_json_response() {
@@ -722,7 +618,7 @@ class ArgoController extends ControllerBase {
   public function json_response($statusCode, $json, $error = FALSE) {
     $json['error'] = $error;
     return new Response(json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), $statusCode,
-      ["Content-Type" => "application/json"]);
+      ['Content-Type' => 'application/json']);
   }
 
   /**

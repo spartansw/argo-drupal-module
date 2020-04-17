@@ -31,14 +31,14 @@ class ContentEntityTranslate {
 
   /**
    * @param \Drupal\Core\Entity\ContentEntityInterface $srcEntity
-   * @param string $targetLangcode
-   * @param array $translatedProperties
+   * @param array $translation
    * @throws \Drupal\Core\Entity\EntityStorageException
    * @throws \Drupal\Core\TypedData\Exception\MissingDataException
    * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
-  public function translate(ContentEntityInterface $srcEntity, string $targetLangcode, array $translatedProperties) {
+  public function translate(ContentEntityInterface $srcEntity, array $translation) {
+    $targetLangcode = $translation['targetLangcode'];
     if (!$srcEntity->hasTranslation($targetLangcode)) {
       $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
     }
@@ -46,7 +46,7 @@ class ContentEntityTranslate {
     $targetEntity = $srcEntity->getTranslation($targetLangcode);
 
     $metatags = [];
-    foreach ($translatedProperties['items'] as $translatedProperty) {
+    foreach ($translation['items'] as $translatedProperty) {
       $path = $translatedProperty['path'];
       $translatedPropertyValue = $translatedProperty['value'];
 

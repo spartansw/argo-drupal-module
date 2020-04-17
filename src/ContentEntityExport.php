@@ -200,8 +200,8 @@ class ContentEntityExport {
       foreach ($field['items'] as $item) {
         foreach ($item['properties'] as $property) {
           $flattened[] = [
-            'field' => $field['label'],
-            'property' => $property['label'],
+            'fieldLabel' => $field['label'],
+            'propertyLabel' => $property['label'],
             'propertyType' => $property['type'],
             'path' => $property['path'],
             'value' => $property['value'],

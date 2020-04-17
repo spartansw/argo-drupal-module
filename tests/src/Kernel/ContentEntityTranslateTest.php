@@ -107,8 +107,9 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $export['items'][3]['value'] = $expectedTranslation;
 
     $targetLangcode = $this->german->id();
+    $export['targetLangcode'] = $targetLangcode;
 
-    $this->contentEntityTranslate->translate($node, $targetLangcode, $export);
+    $this->contentEntityTranslate->translate($node, $export);
 
     /* @var \Drupal\node\NodeInterface $updatedSrcNode . */
     $updatedSrcNode = \Drupal::entityTypeManager()->getStorage('node')
@@ -122,7 +123,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $this->assertEqual($translatedMetatag['key1'], $expectedTranslation);
     $this->assertEqual($translatedMetatag['key2'], $expectedTranslation);
 
-    $this->contentEntityTranslate->translate($node, $targetLangcode, $export);
+    $this->contentEntityTranslate->translate($node, $export);
   }
 
   /**

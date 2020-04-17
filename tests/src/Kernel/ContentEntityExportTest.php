@@ -20,6 +20,7 @@ class ContentEntityExportTest extends KernelTestBase {
    * {@inheritdoc}
    */
   public static $modules = [
+    'typed_data',
     'argo',
     'node',
     'user',
