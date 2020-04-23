@@ -58,7 +58,7 @@ argo.test:
     _title: 'Try exporting all content entities'
     _controller: '\Drupal\argo\Controller\ArgoController::testAll'
   requirements:
-  _permission: 'test'
+    _permission: 'test'
 
 argo.webform_metadata:
   path: /argo/webform_metadata

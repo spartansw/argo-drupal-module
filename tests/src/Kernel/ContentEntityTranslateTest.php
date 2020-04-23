@@ -29,6 +29,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
     'language',
     'token',
     'metatag',
+    'link',
   ];
 
   /**
@@ -124,6 +125,74 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $this->assertEqual($translatedMetatag['key2'], $expectedTranslation);
 
     $this->contentEntityTranslate->translate($node, $export);
+  }
+
+  public function testMapTranslation() {
+    $this->addField('node', 'article', 'field_map', TRUE, 'link');
+
+    $node = Node::create([
+      'type' => 'article',
+      'title' => 'Test title',
+      'field_map' => [
+        'attributes' => [],
+        'uri' => 'testUri',
+        'title' => 'testTitle',
+        'options' => [
+          'nestedKey' => 'nestedValue',
+        ],
+      ],
+    ]);
+    $node->save();
+
+    $export = $this->contentEntityExport->export($node);
+
+    $targetLangcode = $this->german->id();
+    $export['targetLangcode'] = $targetLangcode;
+
+
+    $export['items'][1]['value'] = 'testUriX';
+    $export['items'][2]['value'] = 'testTitleX';
+    $export['items'][3]['value'] = 'nestedValueX';
+
+    $this->contentEntityTranslate->translate($node, $export);
+
+    /* @var \Drupal\node\NodeInterface $updatedSrcNode . */
+    $updatedSrcNode = \Drupal::entityTypeManager()->getStorage('node')
+      ->load($node->id());
+    $translatedNode = $updatedSrcNode->getTranslation($targetLangcode);
+
+    $this->assertEqual($translatedNode->field_map->getValue()[0], [
+      'uri' => 'testUriX',
+      'title' => 'testTitleX',
+      'options' => [
+        'nestedKey' => 'nestedValueX',
+      ],
+    ]);
+  }
+
+
+  public function testFlattenMap() {
+    $result = $this->contentEntityExport->flattenProp([
+      'attributes' => [],
+      'key' => 'value',
+      'nestedKey' => [
+        'nested' => 'nestedValue',
+      ],
+    ]);
+
+    $this->assertEqual($result, [
+      'key' => 'value',
+      'nestedKey.nested' => 'nestedValue',
+    ]);
+
+    $roundtrip = $this->contentEntityTranslate->buildProp($result);
+
+    $this->assertEqual($roundtrip, [
+      'key' => 'value',
+      'nestedKey' => [
+        'nested' => 'nestedValue',
+      ],
+    ]);
   }
 
   /**

@@ -58,8 +58,15 @@ class ContentEntityTranslate {
         continue;
       }
 
-      $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $path, NULL, $targetLangcode);
-      $data->setValue($translatedPropertyValue);
+      $special = explode('!', $path);
+      if (count(array_keys($special)) > 1) {
+        $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $special[0], NULL, $targetLangcode);
+        $built = $this->buildProp([$special[1] => $translatedPropertyValue]);
+        $data->setValue($built);
+      } else {
+        $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $path, NULL, $targetLangcode);
+        $data->setValue($translatedPropertyValue);
+      }
     }
 
     foreach ($metatags as $propPath => $metatag) {
@@ -68,6 +75,22 @@ class ContentEntityTranslate {
     }
 
     $targetEntity->save();
+  }
+
+
+  public function buildProp($array) {
+    $map = [];
+
+    foreach ($array as $path => $value) {
+      $exploded = explode('.', $path);
+      $cur = &$map;
+      foreach ($exploded as $key) {
+        $cur[$key] = [];
+        $cur = &$cur[$key];
+      }
+      $cur = $value;
+    }
+    return $map;
   }
 
 }

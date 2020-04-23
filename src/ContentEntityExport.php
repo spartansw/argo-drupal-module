@@ -97,14 +97,25 @@ class ContentEntityExport {
                       if (count($value) > 0) {
                         // TODO: recurse finding strings.
                         $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has no prop defs for values');
+
+                        foreach ($this->flattenProp($value) as $key => $value) {
+                          $propertiesOut[] = [
+                            'name' => $propName,
+                            'label' => (string) $propDef->getLabel(),
+                            'type' => $dataType,
+                            'value' => $value,
+                            'path' => $propertyPath . '!' . $key,
+                          ];
+                        }
+                        continue;
                       }
                     }
                     else {
                       // TODO: get defs.
                       $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has defs but are not read');
                     }
-                    $attributes = $value['attributes'];
-                    if (isset($attributes)) {
+                    if (isset($value['attributes'])) {
+                      $attributes = $value['attributes'];
                       if (count($attributes) > 0) {
                         if (!(isset($attributes['target']) && ($attributes['target'] === '_blank') || $attributes['target'] === 0)) {
                           $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'strange attributes map');
@@ -210,6 +221,27 @@ class ContentEntityExport {
       }
     }
     return $flattened;
+  }
+
+  /**
+   *
+   */
+  public function flattenProp($array, $baseKey = '') {
+    $flat = [];
+
+    foreach ($array as $key => $value) {
+      $nextKey = $key;
+      if (strlen($baseKey) > 0) {
+        $nextKey = $baseKey . '.' . $key;
+      }
+      if (is_array($value)) {
+        $flat = array_merge($flat, $this->flattenProp($value, $nextKey));
+      }
+      else {
+        $flat[$nextKey] = $value;
+      }
+    }
+    return $flat;
   }
 
 }
