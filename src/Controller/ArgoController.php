@@ -94,6 +94,28 @@ class ArgoController extends ControllerBase {
     return new JsonResponse();
   }
 
+    /**
+   * Returns the uuid for a node
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function nodeUuid(Request $request) {
+    $nodeId = $request->get('node-id');
+
+    $node = \Drupal::entityTypeManager()
+      ->getStorage('node')
+      ->load($nodeId);
+
+    return new JsonResponse(['uuid' => $node->uuid()]);
+  }
+
   /**
    *
    */

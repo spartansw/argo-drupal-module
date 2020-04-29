@@ -8,6 +8,16 @@ argo.export:
     _permission: 'Export content entity'
   methods: ['GET']
 
+argo.node_uuid:
+  path: /argo/node-uuid
+  defaults:
+    _title: 'Lookup UUID for a node by ID'
+    _controller: '\Drupal\argo\Controller\ArgoController::nodeUuid'
+  requirements:
+    _format: 'json'
+    _permission: 'Lookup UUID'
+  methods: ['GET']
+
 argo.translation:
   path: /argo/content-entity/{type}/{uuid}/translation
   defaults:
