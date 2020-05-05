@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\TypedData\Exception\MissingDataException;
 
@@ -66,6 +67,7 @@ class ArgoService implements ArgoServiceInterface {
   public function export(string $entityType, string $uuid) {
     $loadResult = $this->entityTypeManager
       ->getStorage($entityType)
+      ->load()
       ->loadByProperties(['uuid' => $uuid]);
     if (empty($loadResult)) {
       throw new MissingDataException();
@@ -99,6 +101,62 @@ class ArgoService implements ArgoServiceInterface {
     $entity = $loadResult[array_keys($loadResult)[0]];
 
     $this->contentEntityTranslate->translate($entity, $translation);
+  }
+
+  /**
+   *
+   */
+  public function updated(string $entityType, int $lastUpdate, int $limit, int $offset) {
+    $entityStorage = $this->entityTypeManager
+      ->getStorage($entityType);
+
+    // Performance of ordering by integer entity IDs is about
+    // 2 times faster than by UUID.
+    /** @var \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager */
+    $idKey = $this->entityTypeManager->getDefinition($entityType)->getKey('id');
+
+    /** @var \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager */
+    $entityFieldManager = \Drupal::service('entity_field.manager');
+    $changedFieldName = array_keys($entityFieldManager->getFieldMapByFieldType('changed')[$entityType])[0];
+
+    $count = intval($this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName)->count()->execute());
+    $ids = $this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName)
+      ->sort($idKey)->range($offset, $limit)->execute();
+
+    $nextOffset = $offset + $limit;
+    $hasNext = $nextOffset < $count;
+
+    $updated = [];
+    if ($hasNext) {
+      $updated['nextOffset'] = $nextOffset;
+      $updated['count'] = $count;
+    }
+
+    $updated['data'] = [];
+    foreach ($ids as $id) {
+      /** @var \Drupal\Core\Entity\EditorialContentEntityBase $entity */
+      $entity = $entityStorage->load($id);
+
+      $updated['data'][] = [
+        'typeId' => $entity->getEntityTypeId(),
+        'bundle' => $entity->bundle(),
+        'id' => $entity->id(),
+        'uuid' => $entity->uuid(),
+        'path' => $entity->toUrl()->toString(),
+        'langcode' => $entity->language()->getId(),
+        'changed' => intval($entity->get($changedFieldName)->value),
+      ];
+    }
+
+    return $updated;
+  }
+
+  /**
+   *
+   */
+  private function updatedQuery(EntityStorageInterface $entityStorage, $lastUpdate, $changedName) {
+    return $entityStorage->getQuery()
+      ->condition($changedName, $lastUpdate, '>');
   }
 
 }

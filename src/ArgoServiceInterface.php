@@ -22,4 +22,9 @@ interface ArgoServiceInterface {
    */
   public function translate(string $entityType, string $uuid, array $translation);
 
+  /**
+   *
+   */
+  public function updated(string $entityType, int $lastUpdate, int $limit, int $offset);
+
 }

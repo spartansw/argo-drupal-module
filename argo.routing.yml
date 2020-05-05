@@ -1,3 +1,13 @@
+argo.updated:
+  path: /argo/content-entity/{type}/updated
+  defaults:
+    _title: 'Get content entity metadata'
+    _controller: '\Drupal\argo\Controller\ArgoController::updatedContentEntities'
+  requirements:
+    _format: 'json'
+    _permission: 'Export content entity metadata'
+  methods: ['GET']
+
 argo.export:
   path: /argo/content-entity/{type}/{uuid}/export
   defaults:

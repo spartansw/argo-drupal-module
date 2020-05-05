@@ -55,6 +55,27 @@ class ArgoController extends ControllerBase {
   }
 
   /**
+   * Lists updated editorial content entity metadata using a
+   * single 'changed' field type.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function updatedContentEntities(Request $request) {
+    $entityType = $request->get('type');
+    $lastUpdate = intval($request->query->get('last-update'));
+    $limit = intval($request->query->get('limit'));
+    $offset = intval($request->query->get('offset'));
+
+    $updated = $this->argoService->updated($entityType, $lastUpdate, $limit, $offset);
+
+    return new JsonResponse($updated);
+  }
+
+  /**
    * Exports a content entity for translation.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
