@@ -4,6 +4,7 @@ namespace Drupal\argo;
 
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Language\Language;
 use Drupal\Core\TypedData\Exception\MissingDataException;
 
 /**
@@ -114,13 +115,15 @@ class ArgoService implements ArgoServiceInterface {
     // 2 times faster than by UUID.
     /** @var \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager */
     $idKey = $this->entityTypeManager->getDefinition($entityType)->getKey('id');
+    $langcodeKey = $this->entityTypeManager->getDefinition($entityType)->getKey('langcode');
 
     /** @var \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager */
     $entityFieldManager = \Drupal::service('entity_field.manager');
     $changedFieldName = array_keys($entityFieldManager->getFieldMapByFieldType('changed')[$entityType])[0];
 
-    $count = intval($this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName)->count()->execute());
-    $ids = $this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName)
+    $count = intval($this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName,
+      $langcodeKey)->count()->execute());
+    $ids = $this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName, $langcodeKey)
       ->sort($idKey)->range($offset, $limit)->execute();
 
     $nextOffset = $offset + $limit;
@@ -154,8 +157,9 @@ class ArgoService implements ArgoServiceInterface {
   /**
    *
    */
-  private function updatedQuery(EntityStorageInterface $entityStorage, $lastUpdate, $changedName) {
+  private function updatedQuery(EntityStorageInterface $entityStorage, $lastUpdate, $changedName, $langcodeKey) {
     return $entityStorage->getQuery()
+      ->condition($langcodeKey, Language::LANGCODE_NOT_SPECIFIED, '!=')
       ->condition($changedName, $lastUpdate, '>');
   }
 
