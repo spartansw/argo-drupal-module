@@ -5,29 +5,18 @@
  */
 
 use Drupal\Core\Database\Database;
-use Drupal\Component\Serialization\Json;
 use Drupal\Core\Entity\EntityInterface;
 
 /**
  * Implements hook_entity_delete().
+ * @throws Exception
  */
 function argo_entity_delete(EntityInterface $entity) {
   $conn = Database::getConnection();
-  $result = $conn->insert('argo_entity_deletion')
+  $conn->insert('argo_entity_deletion')
     ->fields([
-            'entityType' => $entity->getEntityTypeId(),
-            'bundle' => $entity->bundle(),
-            'uuid' => $entity->uuid()
-        ])
-    ->execute();
-
-  $result = $conn->query("SELECT * FROM argo_entity_deletion")->fetchAll();
-
-  // $argo_endpoint = 'http://localhost:5678/entity/delete';
-  //    $authentication_headers = ['Authorization' => 'Basic argo:argo'];
-  //    $request_body = $result;
-  //    $response = \Drupal::httpClient()->post($argo_endpoint, [
-  //        'headers' => $authentication_headers,
-  //        'body' => Json::encode($request_body),
-  //    ]);
+      'entityType' => $entity->getEntityTypeId(),
+      'bundle' => $entity->bundle(),
+      'uuid' => $entity->uuid(),
+    ])->execute();
 }
