@@ -82,7 +82,7 @@ class ArgoController extends ControllerBase {
    * @param \Symfony\Component\HttpFoundation\Request $request
    *   The request.
    *
-   * @return \Symfony\Component\HttpFoundation\Response
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
    *   The response object.
    *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
@@ -95,7 +95,7 @@ class ArgoController extends ControllerBase {
 
     $this->argoService->translate($entityType, $uuid, $translation);
 
-    return new Response();
+    return new JsonResponse();
   }
 
   /**
@@ -131,6 +131,29 @@ class ArgoController extends ControllerBase {
     $deleted = json_decode($request->getContent(), TRUE)['deleted'];
     $this->argoService->resetDeletionLog($deleted);
     return new Response();
+  }
+
+  /**
+   * Returns the uuid for an entity
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function entityUuid(Request $request) {
+    $type = $request->get('type');
+    $id = $request->get('id');
+
+    $entity = \Drupal::entityTypeManager()
+      ->getStorage($type)
+      ->load($id);
+
+    return new JsonResponse(['uuid' => $entity->uuid()]);
   }
 
 }

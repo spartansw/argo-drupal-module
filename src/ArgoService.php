@@ -69,7 +69,6 @@ class ArgoService implements ArgoServiceInterface {
   public function export(string $entityType, string $uuid) {
     $loadResult = $this->entityTypeManager
       ->getStorage($entityType)
-      ->load()
       ->loadByProperties(['uuid' => $uuid]);
     if (empty($loadResult)) {
       throw new MissingDataException();
@@ -114,17 +113,19 @@ class ArgoService implements ArgoServiceInterface {
 
     // Performance of ordering by integer entity IDs is about
     // 2 times faster than by UUID.
-    /** @var \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager */
-    $idKey = $this->entityTypeManager->getDefinition($entityType)->getKey('id');
-    $langcodeKey = $this->entityTypeManager->getDefinition($entityType)->getKey('langcode');
+    /** @var \Drupal\Core\Entity\ContentEntityTypeInterface $contentEntityType */
+    $contentEntityType = $this->entityTypeManager->getDefinition($entityType);
+    $idKey = $contentEntityType->getKey('id');
+    $langcodeKey = $contentEntityType->getKey('langcode');
+    $revisionCreatedKey = $contentEntityType->getRevisionMetadataKey('revision_created');
 
     /** @var \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager */
     $entityFieldManager = \Drupal::service('entity_field.manager');
     $changedFieldName = array_keys($entityFieldManager->getFieldMapByFieldType('changed')[$entityType])[0];
 
     $count = intval($this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName,
-      $langcodeKey)->count()->execute());
-    $ids = $this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName, $langcodeKey)
+      $langcodeKey, $revisionCreatedKey)->count()->execute());
+    $ids = $this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName, $langcodeKey, $revisionCreatedKey)
       ->sort($idKey)->range($offset, $limit)->execute();
 
     $nextOffset = $offset + $limit;
@@ -141,6 +142,10 @@ class ArgoService implements ArgoServiceInterface {
       /** @var \Drupal\Core\Entity\EditorialContentEntityBase $entity */
       $entity = $entityStorage->load($id);
 
+      $changedTime = intval($entity->get($changedFieldName)->value);
+      if ($changedTime === 0) {
+        $changedTime = intval($entity->getRevisionCreationTime());
+      }
       $updated['data'][] = [
         'typeId' => $entity->getEntityTypeId(),
         'bundle' => $entity->bundle(),
@@ -148,7 +153,7 @@ class ArgoService implements ArgoServiceInterface {
         'uuid' => $entity->uuid(),
         'path' => $entity->toUrl()->toString(),
         'langcode' => $entity->language()->getId(),
-        'changed' => intval($entity->get($changedFieldName)->value),
+        'changed' => $changedTime,
       ];
     }
 
@@ -158,10 +163,14 @@ class ArgoService implements ArgoServiceInterface {
   /**
    *
    */
-  private function updatedQuery(EntityStorageInterface $entityStorage, $lastUpdate, $changedName, $langcodeKey) {
-    return $entityStorage->getQuery()
+  private function updatedQuery(EntityStorageInterface $entityStorage, $lastUpdate, $changedName, $langcodeKey,
+                                $revisionCreatedKey) {
+    $query = $entityStorage->getQuery();
+    return $query
       ->condition($langcodeKey, Language::LANGCODE_NOT_SPECIFIED, '!=')
-      ->condition($changedName, $lastUpdate, '>');
+      ->condition($query->orConditionGroup()
+        ->condition($changedName, $lastUpdate, '>')
+        ->condition($revisionCreatedKey, $lastUpdate, '>'));
   }
 
   /**

@@ -46,16 +46,16 @@ argo.translation:
     _permission: 'translate Content entities using ARGO'
   methods: ['POST']
 
-#argo.node_uuid:
-#  path: /argo/node-uuid
-#  defaults:
-#    _title: 'Lookup UUID for a node by ID'
-#    _controller: '\Drupal\argo\Controller\ArgoController::nodeUuid'
-#  requirements:
-#    _format: 'json'
-#    _permission: 'Lookup UUID'
-#  methods: ['GET']
-#
+argo.entity_uuid:
+  path: /argo/entity-uuid
+  defaults:
+    _title: 'Lookup UUID for an entity by ID'
+    _controller: '\Drupal\argo\Controller\ArgoController::entityUuid'
+  requirements:
+    _format: 'json'
+    _permission: 'Lookup UUID'
+  methods: ['GET']
+
 #argo.field_definitions:
 #  path: /argo/field_definitions
 #  defaults:
