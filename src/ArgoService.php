@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\Core\Database\Database;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Language\Language;
@@ -161,6 +162,28 @@ class ArgoService implements ArgoServiceInterface {
     return $entityStorage->getQuery()
       ->condition($langcodeKey, Language::LANGCODE_NOT_SPECIFIED, '!=')
       ->condition($changedName, $lastUpdate, '>');
+  }
+
+  /**
+   *
+   */
+  public function getDeletionLog() {
+    $conn = Database::getConnection();
+    $deleted = $conn->query('SELECT * FROM argo_entity_deletion')->fetchAll();
+    return ['deleted' => $deleted];
+  }
+
+  /**
+   * @param array $deleted
+   */
+  public function resetDeletionLog(array $deleted) {
+    $ids = [];
+    foreach ($deleted as $item) {
+      $ids[] = $item['uuid'];
+    }
+
+    $conn = Database::getConnection();
+    $conn->delete('argo_entity_deletion')->condition('uuid', $ids, 'IN')->execute();
   }
 
 }

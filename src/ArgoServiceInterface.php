@@ -27,4 +27,8 @@ interface ArgoServiceInterface {
    */
   public function updated(string $entityType, int $lastUpdate, int $limit, int $offset);
 
+  public function getDeletionLog();
+
+  public function resetDeletionLog(array $deleted);
+
 }
