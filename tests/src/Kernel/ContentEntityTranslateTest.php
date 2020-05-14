@@ -127,6 +127,9 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $this->contentEntityTranslate->translate($node, $export);
   }
 
+  /**
+   * Test map translation.
+   */
   public function testMapTranslation() {
     $this->addField('node', 'article', 'field_map', TRUE, 'link');
 
@@ -149,7 +152,6 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $targetLangcode = $this->german->id();
     $export['targetLangcode'] = $targetLangcode;
 
-
     $export['items'][1]['value'] = 'testUriX';
     $export['items'][2]['value'] = 'testTitleX';
     $export['items'][3]['value'] = 'nestedValueX';
@@ -170,7 +172,9 @@ class ContentEntityTranslateTest extends KernelTestBase {
     ]);
   }
 
-
+  /**
+   * Test flatten map.
+   */
   public function testFlattenMap() {
     $result = $this->contentEntityExport->flattenProp([
       'attributes' => [],
@@ -196,7 +200,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
   }
 
   /**
-   *
+   * Add field util.
    */
   private function addField(string $entityType, string $bundle, string $fieldName, bool $translatable, string $dataType) {
     $fieldStorage = FieldStorageConfig::create([

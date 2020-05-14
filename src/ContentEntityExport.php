@@ -11,15 +11,19 @@ use Drupal\Core\Field\FieldDefinitionInterface;
 class ContentEntityExport {
 
   /**
-   *
+   * Construct.
    */
   public function __construct() {
   }
 
   /**
-   * @param \Drupal\Core\Entity\EntityInterface $entity
+   * Export content entity.
+   *
+   * @param \Drupal\Core\Entity\ContentEntityInterface $entity
+   *   Entity to export.
    *
    * @return array
+   *   Exported entity.
    */
   public function export(ContentEntityInterface $entity): array {
     $translatableFields = $entity->getTranslatableFields(FALSE);
@@ -185,7 +189,7 @@ class ContentEntityExport {
   }
 
   /**
-   *
+   * Add warning to export.
    */
   public function addWarning(array &$warnings, ContentEntityInterface $entity, $value, $type, $name, $msg) {
     $warnings[] = [
@@ -200,9 +204,13 @@ class ContentEntityExport {
   }
 
   /**
-   * @param \Drupal\Core\Entity\EntityInterface $entity
+   * Flatten export.
+   *
+   * @param array $exportFields
+   *   Fields to flatten.
    *
    * @return array
+   *   Flattened array.
    */
   public function flattenExport(array $exportFields): array {
     $flattened = [];
@@ -224,7 +232,7 @@ class ContentEntityExport {
   }
 
   /**
-   *
+   * Flatten props.
    */
   public function flattenProp($array, $baseKey = '') {
     $flat = [];

@@ -10,11 +10,13 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- *
+ * Argo module controller.
  */
 class ArgoController extends ControllerBase {
 
   /**
+   * Argo service.
+   *
    * @var \Drupal\argo\ArgoServiceInterface
    */
   private $argoService;
@@ -23,6 +25,7 @@ class ArgoController extends ControllerBase {
    * Argo constructor.
    *
    * @param \Drupal\argo\ArgoServiceInterface $argoService
+   *   Argo service.
    */
   public function __construct(ArgoServiceInterface $argoService) {
     $this->argoService = $argoService;
@@ -38,8 +41,9 @@ class ArgoController extends ControllerBase {
   }
 
   /**
-   * Lists updated editorial content entity metadata using a
-   * single 'changed' field type.
+   * Lists updated editorial content entity metadata.
+   *
+   * Uses a single 'changed' field type.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
    *   The request.
@@ -99,7 +103,7 @@ class ArgoController extends ControllerBase {
   }
 
   /**
-   * Fetch deleted entity IDs
+   * Fetch deleted entity IDs.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
    *   The request.
@@ -116,7 +120,7 @@ class ArgoController extends ControllerBase {
   }
 
   /**
-   * Reset deleted entity log
+   * Reset deleted entity log.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
    *   The request.
@@ -134,7 +138,7 @@ class ArgoController extends ControllerBase {
   }
 
   /**
-   * Returns the uuid for an entity
+   * Returns the uuid for an entity.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
    *   The request.
@@ -149,11 +153,9 @@ class ArgoController extends ControllerBase {
     $type = $request->get('type');
     $id = $request->get('id');
 
-    $entity = \Drupal::entityTypeManager()
-      ->getStorage($type)
-      ->load($id);
+    $uuid = $this->argoService->entityUuid($type, $id);
 
-    return new JsonResponse(['uuid' => $entity->uuid()]);
+    return new JsonResponse(['uuid' => $uuid]);
   }
 
 }

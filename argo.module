@@ -2,6 +2,7 @@
 
 /**
  * @file
+ * Implement hook for Argo module.
  */
 
 use Drupal\Core\Database\Database;
@@ -9,6 +10,7 @@ use Drupal\Core\Entity\EntityInterface;
 
 /**
  * Implements hook_entity_delete().
+ *
  * @throws Exception
  */
 function argo_entity_delete(EntityInterface $entity) {

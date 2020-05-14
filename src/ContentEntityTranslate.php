@@ -30,8 +30,13 @@ class ContentEntityTranslate {
   }
 
   /**
+   * Translate content entity.
+   *
    * @param \Drupal\Core\Entity\ContentEntityInterface $srcEntity
+   *   Source content entity.
    * @param array $translation
+   *   Translations object.
+   *
    * @throws \Drupal\Core\Entity\EntityStorageException
    * @throws \Drupal\Core\TypedData\Exception\MissingDataException
    * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
@@ -63,7 +68,8 @@ class ContentEntityTranslate {
         $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $special[0], NULL, $targetLangcode);
         $built = $this->buildProp([$special[1] => $translatedPropertyValue]);
         $data->setValue($built);
-      } else {
+      }
+      else {
         $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $path, NULL, $targetLangcode);
         $data->setValue($translatedPropertyValue);
       }
@@ -77,7 +83,9 @@ class ContentEntityTranslate {
     $targetEntity->save();
   }
 
-
+  /**
+   * Build prop util.
+   */
   public function buildProp($array) {
     $map = [];
 

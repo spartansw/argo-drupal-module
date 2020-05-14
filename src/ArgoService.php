@@ -42,6 +42,7 @@ class ArgoService implements ArgoServiceInterface {
    * @param ContentEntityExport $contentEntityExport
    *   Exporter.
    * @param ContentEntityTranslate $contentEntityTranslate
+   *   Content entity translation service.
    */
   public function __construct(
     EntityTypeManagerInterface $entity_type_manager,
@@ -57,7 +58,9 @@ class ArgoService implements ArgoServiceInterface {
    * Export.
    *
    * @param string $entityType
+   *   Entity type ID.
    * @param string $uuid
+   *   Entity UUID.
    *
    * @return array
    *   Export.
@@ -82,8 +85,11 @@ class ArgoService implements ArgoServiceInterface {
    * Translate.
    *
    * @param string $entityType
+   *   Entity type ID.
    * @param string $uuid
+   *   Entity UUID.
    * @param array $translation
+   *   Translation object.
    *
    * @throws \Drupal\Core\TypedData\Exception\MissingDataException
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
@@ -105,7 +111,7 @@ class ArgoService implements ArgoServiceInterface {
   }
 
   /**
-   *
+   * Get updated entities.
    */
   public function updated(string $entityType, int $lastUpdate, int $limit, int $offset) {
     $entityStorage = $this->entityTypeManager
@@ -161,9 +167,26 @@ class ArgoService implements ArgoServiceInterface {
   }
 
   /**
+   * Updated query util.
    *
+   * @param \Drupal\Core\Entity\EntityStorageInterface $entityStorage
+   *   Entity storage.
+   * @param int $lastUpdate
+   *   Last update epoch seconds.
+   * @param string $changedName
+   *   Name of changed field.
+   * @param string $langcodeKey
+   *   Name of langcode field.
+   * @param string $revisionCreatedKey
+   *   Name of revision created field.
+   *
+   * @return \Drupal\Core\Entity\Query\QueryInterface
+   *   Query.
    */
-  private function updatedQuery(EntityStorageInterface $entityStorage, $lastUpdate, $changedName, $langcodeKey,
+  private function updatedQuery(EntityStorageInterface $entityStorage,
+                                $lastUpdate,
+                                $changedName,
+                                $langcodeKey,
                                 $revisionCreatedKey) {
     $query = $entityStorage->getQuery();
     return $query
@@ -174,7 +197,7 @@ class ArgoService implements ArgoServiceInterface {
   }
 
   /**
-   *
+   * Get deletion log.
    */
   public function getDeletionLog() {
     $conn = Database::getConnection();
@@ -183,7 +206,10 @@ class ArgoService implements ArgoServiceInterface {
   }
 
   /**
+   * Reset deletion log.
+   *
    * @param array $deleted
+   *   Deleted entity UUIDs to clear from log.
    */
   public function resetDeletionLog(array $deleted) {
     $ids = [];
@@ -193,6 +219,17 @@ class ArgoService implements ArgoServiceInterface {
 
     $conn = Database::getConnection();
     $conn->delete('argo_entity_deletion')->condition('uuid', $ids, 'IN')->execute();
+  }
+
+  /**
+   * Get entity UUID.
+   */
+  public function entityUuid($type, $id) {
+    $entity = $this->entityTypeManager
+      ->getStorage($type)
+      ->load($id);
+
+    return $entity->uuid();
   }
 
 }

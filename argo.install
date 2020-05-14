@@ -2,34 +2,36 @@
 
 /**
  * @file
+ * Installs Argo module.
  */
 
 /**
  * Implements hook_schema().
  */
 function argo_schema() {
+  $schema = [];
   $schema['argo_entity_deletion'] = [
     'description' => 'Argo Entity deletion log.',
     'fields' => [
-            'uuid' => [
-              'description' => 'Deleted entity uuid',
-              'type' => 'varchar',
-              'length' => 36,
-              'not null' => TRUE,
-            ],
-            'entityType' => [
-              'description' => 'Deleted entity type',
-              'type' => 'varchar',
-              'length' => 255,
-              'not null' => TRUE,
-            ],
-            'bundle' => [
-              'description' => 'Deleted entity bundle',
-              'type' => 'varchar',
-              'length' => 255,
-              'not null' => TRUE,
-            ]
-        ],
+      'uuid' => [
+        'description' => 'Deleted entity uuid',
+        'type' => 'varchar',
+        'length' => 36,
+        'not null' => TRUE,
+      ],
+      'entityType' => [
+        'description' => 'Deleted entity type',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ],
+      'bundle' => [
+        'description' => 'Deleted entity bundle',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ],
+    ],
     'primary key' => ['uuid'],
   ];
   return $schema;
