@@ -67,11 +67,14 @@ class ContentEntityExport {
           // TODO: recurse complex types.
           if (!$propDef->isComputed()) {
             if (!isset($ignoreTypes[$dataType])) {
-              $hasFieldOut = TRUE;
-              $hasItemOut = TRUE;
               $prop = $fieldItem->get($propName);
               $propertyPath = $prop->getPropertyPath();
               $value = $prop->getValue();
+
+              if (strlen(str_replace(' ', '', $value)) > 0) {
+                $hasFieldOut = TRUE;
+                $hasItemOut = TRUE;
+              }
               if ($value !== NULL) {
                 if (isset($stringTypes[$dataType])) {
                   // TODO: remove null values?

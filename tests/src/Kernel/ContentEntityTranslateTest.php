@@ -200,6 +200,43 @@ class ContentEntityTranslateTest extends KernelTestBase {
   }
 
   /**
+   * Test empty source values.
+   */
+  public function testEmptyValues() {
+    $this->addField('node', 'article', 'field_string', TRUE, 'string');
+    $testValues = ['test value', '', ' '];
+    foreach ($testValues as $testValue) {
+      $node = Node::create([
+        'type' => 'article',
+        'title' => 'Test title',
+        'field_string' => [
+          'value' => $testValue,
+        ],
+      ]);
+      $node->save();
+
+      $export = $this->contentEntityExport->export($node);
+
+      if (isset($export['items'][1])) {
+        $this->assertEqual($export['items'][1]['value'], 'test value');
+      }
+
+      $targetLangcode = $this->german->id();
+      $export['targetLangcode'] = $targetLangcode;
+
+      $this->contentEntityTranslate->translate($node, $export);
+
+      /* @var \Drupal\node\NodeInterface $updatedSrcNode . */
+      $updatedSrcNode = \Drupal::entityTypeManager()->getStorage('node')
+        ->load($node->id());
+      $export2 = $this->contentEntityExport->export($updatedSrcNode);
+      $export2['targetLangcode'] = $targetLangcode;
+
+      $this->contentEntityTranslate->translate($updatedSrcNode, $export2);
+    }
+  }
+
+  /**
    * Add field util.
    */
   private function addField(string $entityType, string $bundle, string $fieldName, bool $translatable, string $dataType) {
