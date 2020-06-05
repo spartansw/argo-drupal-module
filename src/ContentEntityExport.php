@@ -71,7 +71,7 @@ class ContentEntityExport {
               $propertyPath = $prop->getPropertyPath();
               $value = $prop->getValue();
 
-              if (strlen(str_replace(' ', '', $value)) > 0) {
+              if (!is_string($value) || strlen(str_replace(' ', '', $value)) > 0) {
                 $hasFieldOut = TRUE;
                 $hasItemOut = TRUE;
               }
