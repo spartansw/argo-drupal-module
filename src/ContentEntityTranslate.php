@@ -44,9 +44,13 @@ class ContentEntityTranslate {
    */
   public function translate(ContentEntityInterface $srcEntity, array $translation) {
     $targetLangcode = $translation['targetLangcode'];
-    if (!$srcEntity->hasTranslation($targetLangcode)) {
-      $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
+    if ($srcEntity->hasTranslation($targetLangcode)) {
+      //Must remove existing translation because it might not have all fields
+      $srcEntity->removeTranslation($targetLangcode);
     }
+
+    //Copy src fields to target
+    $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
 
     $targetEntity = $srcEntity->getTranslation($targetLangcode);
 
