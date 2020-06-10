@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\content_moderation\Plugin\WorkflowType\ContentModeration;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\typed_data\DataFetcherInterface;
 
@@ -37,7 +38,9 @@ class ContentEntityTranslate {
    * @param array $translation
    *   Translations object.
    *
-   * @throws \Drupal\Core\Entity\EntityStorageException
+   * @return \Drupal\Core\Entity\ContentEntityInterface
+   *   Translated entity.
+   *
    * @throws \Drupal\Core\TypedData\Exception\MissingDataException
    * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
@@ -45,11 +48,11 @@ class ContentEntityTranslate {
   public function translate(ContentEntityInterface $srcEntity, array $translation) {
     $targetLangcode = $translation['targetLangcode'];
     if ($srcEntity->hasTranslation($targetLangcode)) {
-      //Must remove existing translation because it might not have all fields
+      // Must remove existing translation because it might not have all fields.
       $srcEntity->removeTranslation($targetLangcode);
     }
 
-    //Copy src fields to target
+    // Copy src fields to target.
     $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
 
     $targetEntity = $srcEntity->getTranslation($targetLangcode);
@@ -84,7 +87,7 @@ class ContentEntityTranslate {
       $data->setValue(serialize($metatag));
     }
 
-    $targetEntity->save();
+    return $targetEntity;
   }
 
   /**

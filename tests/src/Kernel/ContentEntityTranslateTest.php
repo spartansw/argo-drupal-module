@@ -30,6 +30,8 @@ class ContentEntityTranslateTest extends KernelTestBase {
     'token',
     'metatag',
     'link',
+    'content_moderation',
+    'workflows',
   ];
 
   /**
@@ -62,6 +64,9 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $this->installEntitySchema('user');
     $this->installEntitySchema('node');
     $this->installSchema('node', ['node_access']);
+
+    $this->installEntitySchema('content_moderation_state');
+    $this->installConfig('content_moderation');
 
     $nodeType = NodeType::create([
       'type' => 'article',
@@ -125,6 +130,8 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $this->assertEqual($translatedMetatag['key2'], $expectedTranslation);
 
     $this->contentEntityTranslate->translate($node, $export);
+
+    $this->assertEqual();
   }
 
   /**

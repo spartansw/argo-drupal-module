@@ -2,7 +2,9 @@
 
 namespace Drupal\argo;
 
+use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\Core\Database\Database;
+use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Language\Language;
@@ -35,6 +37,13 @@ class ArgoService implements ArgoServiceInterface {
   private $contentEntityTranslate;
 
   /**
+   * Moderation info.
+   *
+   * @var \Drupal\content_moderation\ModerationInformationInterface
+   */
+  private $moderationInfo;
+
+  /**
    * The service constructor.
    *
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
@@ -43,15 +52,19 @@ class ArgoService implements ArgoServiceInterface {
    *   Exporter.
    * @param ContentEntityTranslate $contentEntityTranslate
    *   Content entity translation service.
+   * @param \Drupal\content_moderation\ModerationInformationInterface $moderationInfo
+   *   Moderation info.
    */
   public function __construct(
     EntityTypeManagerInterface $entity_type_manager,
     ContentEntityExport $contentEntityExport,
-    ContentEntityTranslate $contentEntityTranslate
+    ContentEntityTranslate $contentEntityTranslate,
+    ModerationInformationInterface $moderationInfo
   ) {
     $this->entityTypeManager = $entity_type_manager;
     $this->contentEntityExport = $contentEntityExport;
     $this->contentEntityTranslate = $contentEntityTranslate;
+    $this->moderationInfo = $moderationInfo;
   }
 
   /**
@@ -105,9 +118,22 @@ class ArgoService implements ArgoServiceInterface {
     if (empty($loadResult)) {
       throw new MissingDataException();
     }
+    /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
     $entity = $loadResult[array_keys($loadResult)[0]];
 
-    $this->contentEntityTranslate->translate($entity, $translation);
+    $translated = $this->contentEntityTranslate->translate($entity, $translation);
+
+    if ($this->moderationInfo->isModeratedEntity($translated)) {
+      if ($translated instanceof EntityPublishedInterface) {
+        $translated->setUnpublished();
+      }
+
+      /** @var \Drupal\content_moderation\Plugin\WorkflowType\ContentModerationInterface $contentModeration */
+      $contentModeration = $this->moderationInfo->getWorkflowForEntity($translated)->getTypePlugin();
+      $state = $contentModeration->getInitialState($translated);
+      $translated->set('moderation_state', $state->id());
+    }
+    $translated->save();
   }
 
   /**
