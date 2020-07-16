@@ -128,10 +128,15 @@ class ArgoService implements ArgoServiceInterface {
         $translated->setUnpublished();
       }
 
-      /** @var \Drupal\content_moderation\Plugin\WorkflowType\ContentModerationInterface $contentModeration */
-      $contentModeration = $this->moderationInfo->getWorkflowForEntity($translated)->getTypePlugin();
-      $state = $contentModeration->getInitialState($translated);
-      $translated->set('moderation_state', $state->id());
+      if (!isset($translation['stateId']) || strlen($translation['stateId']) < 1) {
+        /** @var \Drupal\content_moderation\Plugin\WorkflowType\ContentModerationInterface $contentModeration */
+        $contentModeration = $this->moderationInfo->getWorkflowForEntity($translated)->getTypePlugin();
+        $stateId = $contentModeration->getInitialState($translated)->id();
+      }
+      else {
+        $stateId = $translation['stateId'];
+      }
+      $translated->set('moderation_state', $stateId);
     }
     $translated->save();
   }
