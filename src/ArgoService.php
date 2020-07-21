@@ -123,11 +123,15 @@ class ArgoService implements ArgoServiceInterface {
 
     $translated = $this->contentEntityTranslate->translate($entity, $translation);
 
-    if ($this->moderationInfo->isModeratedEntity($translated)) {
-      if ($translated instanceof EntityPublishedInterface) {
-        $translated->setUnpublished();
+    if ($translated instanceof EntityPublishedInterface) {
+      $translated->setUnpublished();
+    }
+    if (isset($translation['stateId'])) {
+      if ($translation['stateId'] === 'published') {
+        $translated->setPublished();
       }
-
+    }
+    if ($this->moderationInfo->isModeratedEntity($translated)) {
       if (!isset($translation['stateId']) || strlen($translation['stateId']) < 1) {
         /** @var \Drupal\content_moderation\Plugin\WorkflowType\ContentModerationInterface $contentModeration */
         $contentModeration = $this->moderationInfo->getWorkflowForEntity($translated)->getTypePlugin();
