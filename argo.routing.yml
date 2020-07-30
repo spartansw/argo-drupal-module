@@ -5,7 +5,7 @@ argo.updated:
     _controller: '\Drupal\argo\Controller\ArgoController::updatedContentEntities'
   requirements:
     _format: 'json'
-    _permission: 'Export content entity metadata'
+    _permission: 'translate content using argo'
   methods: ['GET']
 
 argo.get_deletion_log:
@@ -14,7 +14,7 @@ argo.get_deletion_log:
     _title: 'Fetch deleted entity IDs'
     _controller: '\Drupal\argo\Controller\ArgoController::getDeletionLog'
   requirements:
-    _permission: 'Get deletion log'
+    _permission: 'translate content using argo'
   methods: ['GET']
 
 argo.reset_deletion_log:
@@ -23,7 +23,7 @@ argo.reset_deletion_log:
     _title: 'Reset deleted entity ID log'
     _controller: '\Drupal\argo\Controller\ArgoController::resetDeletionLog'
   requirements:
-    _permission: 'Reset deletion log'
+    _permission: 'translate content using argo'
   methods: ['POST']
 
 argo.export:
@@ -33,7 +33,7 @@ argo.export:
     _controller: '\Drupal\argo\Controller\ArgoController::exportContentEntity'
   requirements:
     _format: 'json'
-    _permission: 'Export content entity'
+    _permission: 'translate content using argo'
   methods: ['GET']
 
 argo.translation:
@@ -43,7 +43,7 @@ argo.translation:
     _controller: '\Drupal\argo\Controller\ArgoController::translateContentEntity'
   requirements:
     _format: 'json'
-    _permission: 'translate Content entities using ARGO'
+    _permission: 'translate content using argo'
   methods: ['POST']
 
 argo.entity_uuid:
@@ -53,7 +53,7 @@ argo.entity_uuid:
     _controller: '\Drupal\argo\Controller\ArgoController::entityUuid'
   requirements:
     _format: 'json'
-    _permission: 'Lookup UUID'
+    _permission: 'translate content using argo'
   methods: ['GET']
 
 #argo.field_definitions:
