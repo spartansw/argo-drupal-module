@@ -4,6 +4,7 @@ namespace Drupal\argo;
 
 use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\Core\Database\Database;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -21,6 +22,13 @@ class ArgoService implements ArgoServiceInterface {
    * @var \Drupal\Core\Entity\EntityTypeManagerInterface
    */
   private $entityTypeManager;
+
+  /**
+   * Entity field manager.
+   *
+   * @var \Drupal\Core\Entity\EntityFieldManagerInterface
+   */
+  private $entityFieldManager;
 
   /**
    * Exporter.
@@ -48,6 +56,8 @@ class ArgoService implements ArgoServiceInterface {
    *
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
    *   The core entity type manager service.
+   * @param \Drupal\Core\Entity\EntityFieldManagerInterface $entity_field_manager
+   *   The core entity field manager service.
    * @param ContentEntityExport $contentEntityExport
    *   Exporter.
    * @param ContentEntityTranslate $contentEntityTranslate
@@ -57,11 +67,13 @@ class ArgoService implements ArgoServiceInterface {
    */
   public function __construct(
     EntityTypeManagerInterface $entity_type_manager,
+    EntityFieldManagerInterface $entity_field_manager,
     ContentEntityExport $contentEntityExport,
     ContentEntityTranslate $contentEntityTranslate,
     ModerationInformationInterface $moderationInfo
   ) {
     $this->entityTypeManager = $entity_type_manager;
+    $this->entityFieldManager = $entity_field_manager;
     $this->contentEntityExport = $contentEntityExport;
     $this->contentEntityTranslate = $contentEntityTranslate;
     $this->moderationInfo = $moderationInfo;
@@ -160,9 +172,7 @@ class ArgoService implements ArgoServiceInterface {
     $langcodeKey = $contentEntityType->getKey('langcode');
     $revisionCreatedKey = $contentEntityType->getRevisionMetadataKey('revision_created');
 
-    /** @var \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager */
-    $entityFieldManager = \Drupal::service('entity_field.manager');
-    $changedFieldName = array_keys($entityFieldManager->getFieldMapByFieldType('changed')[$entityType])[0];
+    $changedFieldName = array_keys($this->entityFieldManager->getFieldMapByFieldType('changed')[$entityType])[0];
 
     $count = intval($this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName,
       $langcodeKey, $revisionCreatedKey)->count()->execute());
