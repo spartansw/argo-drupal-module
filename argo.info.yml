@@ -9,4 +9,4 @@ dependencies:
 
 configure:
 
-php: 7.2.26
+php: 7.3
