@@ -57,7 +57,7 @@ class ArgoController extends ControllerBase {
     $limit = intval($request->query->get('limit'));
     $offset = intval($request->query->get('offset'));
 
-    $updated = $this->argoService->updated($entityType, $lastUpdate, $limit, $offset);
+    $updated = $this->argoService->getUpdated($entityType, $lastUpdate, $limit, $offset);
 
     return new JsonResponse($updated);
   }

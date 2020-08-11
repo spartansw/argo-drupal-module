@@ -160,7 +160,7 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * Get updated entities.
    */
-  public function updated(string $entityType, int $lastUpdate, int $limit, int $offset) {
+  public function getUpdated(string $entityType, int $lastUpdate, int $limit, int $offset) {
     $entityStorage = $this->entityTypeManager
       ->getStorage($entityType);
 
