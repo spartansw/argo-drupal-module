@@ -246,7 +246,7 @@ class ArgoService implements ArgoServiceInterface {
    */
   public function getDeletionLog() {
     $conn = Database::getConnection();
-    $deleted = $conn->query('SELECT * FROM argo_entity_deletion')->fetchAll();
+    $deleted = $conn->query('SELECT * FROM {argo_entity_deletion}')->fetchAll();
     return ['deleted' => $deleted];
   }
 
