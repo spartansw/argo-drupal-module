@@ -5,6 +5,9 @@
  * Installs Argo module.
  */
 
+use Drupal\user\Entity\Role;
+use Drupal\user\Entity\User;
+
 /**
  * Implements hook_schema().
  */
@@ -35,4 +38,45 @@ function argo_schema() {
     'primary key' => ['uuid'],
   ];
   return $schema;
+}
+
+/**
+ * Add Argo service account, permission, and role.
+ */
+function argo_update_8001() {
+  // Create Argo role.
+  $roleId = 'argo_service';
+  $role = Role::load($roleId);
+  if ($role === NULL) {
+    $role = Role::create([
+      'id' => $roleId,
+      'label' => 'Argo service',
+    ]);
+  }
+
+  // Grant permission to role.
+  $permission = 'translate content using argo';
+  if (!$role->hasPermission($permission)) {
+    $role->grantPermission($permission);
+  }
+  $role->save();
+
+  // Create Argo user.
+  $userName = 'argo.service';
+  $user = user_load_by_name($userName);
+  if ($user === FALSE) {
+    /** @var \Drupal\user\Entity\User $user */
+    $user = User::create([
+      'name' => $userName,
+      'mail' => 'support@spartansoftwareinc.com',
+      'status' => 1,
+    ]);
+  }
+
+  // Add Argo role to user.
+  if (!$user->hasRole($roleId)) {
+    $user->addRole($roleId);
+  }
+
+  $user->save();
 }
