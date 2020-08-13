@@ -6,25 +6,37 @@
  */
 
 use Drupal\Core\Database\Database;
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Psr\Log\LogLevel;
 
 /**
  * Implements hook_entity_delete().
  *
+ * Argo periodically syncs asset metadata modified since the last sync.
+ * Since deleted tracked entities won't show up in that query, we need to
+ * log these deletions and clean up after they're accounted for.
+ * Without this deletion log, we would have to check all entities and subtract
+ * the ones not present after the last sync. The deletion log is a more efficient alternative.
+ *
+ * @param EntityInterface $entity
+ * Entity about to be deleted.
+ *
  * @throws Exception
  */
 function argo_entity_delete(EntityInterface $entity) {
-  $conn = Database::getConnection();
-  try {
-    $conn->upsert('argo_entity_deletion')
-      ->fields([
-        'entityType' => $entity->getEntityTypeId(),
-        'bundle' => $entity->bundle(),
-        'uuid' => $entity->uuid(),
-      ])->execute();
-  } catch (Exception $e) {
-    \Drupal::logger('argo')->log(LogLevel::ERROR, 'Failed to log entity deletion to Argo');
-    throw $e;
+  if ($entity instanceof ContentEntityInterface && $entity->isTranslatable()) {
+    $conn = Database::getConnection();
+    try {
+      $conn->upsert('argo_entity_deletion')
+        ->fields([
+          'entityType' => $entity->getEntityTypeId(),
+          'bundle' => $entity->bundle(),
+          'uuid' => $entity->uuid(),
+        ])->execute();
+    } catch (Exception $e) {
+      \Drupal::logger('argo')->log(LogLevel::ERROR, 'Failed to log entity deletion to Argo');
+      throw $e;
+    }
   }
 }
