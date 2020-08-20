@@ -5,7 +5,8 @@ services:
                 '@entity_field.manager',
                 '@argo.export',
                 '@argo.translate',
-                '@content_moderation.moderation_information']
+                '@content_moderation.moderation_information',
+                '@database']
   argo.export:
     class: Drupal\argo\ContentEntityExport
   argo.translate:

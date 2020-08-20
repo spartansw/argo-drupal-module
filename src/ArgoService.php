@@ -3,11 +3,13 @@
 namespace Drupal\argo;
 
 use Drupal\content_moderation\ModerationInformationInterface;
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Core\TypedData\Exception\MissingDataException;
 
@@ -52,6 +54,13 @@ class ArgoService implements ArgoServiceInterface {
   private $moderationInfo;
 
   /**
+   * The database connection.
+   *
+   * @var \Drupal\Core\Database\Connection
+   */
+  private $connection;
+
+  /**
    * The service constructor.
    *
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
@@ -64,19 +73,23 @@ class ArgoService implements ArgoServiceInterface {
    *   Content entity translation service.
    * @param \Drupal\content_moderation\ModerationInformationInterface $moderationInfo
    *   Moderation info.
+   * @param Connection $connection
+   *   DB connection.
    */
   public function __construct(
     EntityTypeManagerInterface $entity_type_manager,
     EntityFieldManagerInterface $entity_field_manager,
     ContentEntityExport $contentEntityExport,
     ContentEntityTranslate $contentEntityTranslate,
-    ModerationInformationInterface $moderationInfo
+    ModerationInformationInterface $moderationInfo,
+    Connection $connection
   ) {
     $this->entityTypeManager = $entity_type_manager;
     $this->entityFieldManager = $entity_field_manager;
     $this->contentEntityExport = $contentEntityExport;
     $this->contentEntityTranslate = $contentEntityTranslate;
     $this->moderationInfo = $moderationInfo;
+    $this->connection = $connection;
   }
 
   /**
@@ -157,6 +170,10 @@ class ArgoService implements ArgoServiceInterface {
     $translated->save();
   }
 
+  private function getColumnName(TableMappingInterface $tableMapping, string $key) {
+    return $tableMapping->getColumnNames($key)['value'];
+  }
+
   /**
    * Get updated entities.
    */
@@ -164,8 +181,6 @@ class ArgoService implements ArgoServiceInterface {
     $entityStorage = $this->entityTypeManager
       ->getStorage($entityType);
 
-    // Performance of ordering by integer entity IDs is about
-    // 2 times faster than by UUID.
     /** @var \Drupal\Core\Entity\ContentEntityTypeInterface $contentEntityType */
     $contentEntityType = $this->entityTypeManager->getDefinition($entityType);
     $idKey = $contentEntityType->getKey('id');
@@ -174,10 +189,38 @@ class ArgoService implements ArgoServiceInterface {
 
     $changedFieldName = array_keys($this->entityFieldManager->getFieldMapByFieldType('changed')[$entityType])[0];
 
-    $count = intval($this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName,
-      $langcodeKey, $revisionCreatedKey)->count()->execute());
-    $ids = $this->updatedQuery($entityStorage, $lastUpdate, $changedFieldName, $langcodeKey, $revisionCreatedKey)
-      ->sort($idKey)->range($offset, $limit)->execute();
+    $baseTable = $entityStorage->getBaseTable();
+    $dataTable = $entityStorage->getDataTable();
+    $revisionTable = $entityStorage->getRevisionTable();
+
+    /** @var TableMappingInterface $tableMapping */
+    $tableMapping = $entityStorage->getTableMapping();
+
+    $idCol = $this->getColumnName($tableMapping, $idKey);
+    $langcodeCol = $this->getColumnName($tableMapping, $langcodeKey);
+    $changedCol = $this->getColumnName($tableMapping, $changedFieldName);
+    $revisionCol = $this->getColumnName($tableMapping, $revisionCreatedKey);
+
+    // Handmade query due to Entity Storage API adding unnecessary and slow joins
+    // Get all entity IDs of a given type modified since last update
+    $rawIds = $this->connection->query('
+    SELECT base.' . $idCol . '
+    FROM {'. $baseTable . '} AS base
+         LEFT JOIN {' . $dataTable . '} AS data ON data.'. $idCol .' = base. ' . $idCol . '
+         LEFT JOIN {' . $revisionTable . '} revision ON revision. ' . $idCol . ' = base.' . $idCol . '
+    WHERE (data.' . $langcodeCol . '!= \'und\')
+      AND ((data.' . $changedCol . ' > :last_update) OR (revision.' . $revisionCol . ' > :last_update))
+    GROUP BY base.' . $idCol . ' ORDER BY base.' . $idCol . ' ASC;
+    ', ['last_update' => $lastUpdate])->fetchAll();
+
+    $ids = [];
+    foreach ($rawIds as $id) {
+      $ids[] = intval($id->$idKey);
+    }
+
+    $count = count($ids);
+
+    $ids = array_slice($ids, $offset, $limit);
 
     $nextOffset = $offset + $limit;
     $hasNext = $nextOffset < $count;
@@ -189,10 +232,9 @@ class ArgoService implements ArgoServiceInterface {
     }
 
     $updated['data'] = [];
-    foreach ($ids as $id) {
-      /** @var \Drupal\Core\Entity\EditorialContentEntityBase $entity */
-      $entity = $entityStorage->load($id);
-
+    $entities = $entityStorage->loadMultiple($ids);
+    /** @var \Drupal\Core\Entity\EditorialContentEntityBase $entity */
+    foreach ($entities as $entity) {
       $changedTime = intval($entity->get($changedFieldName)->value);
       if ($changedTime === 0) {
         $changedTime = intval($entity->getRevisionCreationTime());
