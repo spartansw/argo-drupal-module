@@ -4,6 +4,8 @@ namespace Drupal\argo\Controller;
 
 use Drupal\argo\ArgoServiceInterface;
 use Drupal\Core\Controller\ControllerBase;
+use Exception;
+use Psr\Log\LogLevel;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -97,8 +99,15 @@ class ArgoController extends ControllerBase {
     $uuid = $request->get('uuid');
     $translation = json_decode($request->getContent(), TRUE);
 
-    $this->argoService->translate($entityType, $uuid, $translation);
-
+    try {
+      $this->argoService->translate($entityType, $uuid, $translation);
+    } catch (Exception $e) {
+      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'message' => $e->__toString(),
+      ],
+        Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
     return new JsonResponse();
   }
 
