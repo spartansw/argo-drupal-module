@@ -101,7 +101,8 @@ class ArgoController extends ControllerBase {
 
     try {
       $this->argoService->translate($entityType, $uuid, $translation);
-    } catch (Exception $e) {
+    }
+    catch (Exception $e) {
       \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
@@ -141,9 +142,18 @@ class ArgoController extends ControllerBase {
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    */
   public function resetDeletionLog(Request $request) {
-    $deleted = json_decode($request->getContent(), TRUE)['deleted'];
-    $this->argoService->resetDeletionLog($deleted);
-    return new Response();
+    try {
+      $deleted = json_decode($request->getContent(), TRUE)['deleted'];
+      $this->argoService->resetDeletionLog($deleted);
+    }
+    catch (Exception $e) {
+      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'message' => $e->__toString(),
+      ],
+        Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
+    return new JsonResponse();
   }
 
   /**

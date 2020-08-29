@@ -70,10 +70,14 @@ class ContentEntityTranslate {
         continue;
       }
 
-      $special = explode('!', $path);
-      if (count(array_keys($special)) > 1) {
-        $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $special[0], NULL, $targetLangcode);
-        $built = $this->buildProp([$special[1] => $translatedPropertyValue]);
+      // Map keys are marked in path with '!' to differentiate from property keys.
+      $pathSplitByMapKeyMark = explode('!', $path);
+      $pathHasMapKey = count(array_keys($pathSplitByMapKeyMark)) > 1;
+      if ($pathHasMapKey) {
+        $pathWithoutMapKey = $pathSplitByMapKeyMark[0];
+        $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $pathWithoutMapKey, NULL, $targetLangcode);
+        $mapKey = $pathSplitByMapKeyMark[1];
+        $built = $this->buildProp([$mapKey => $translatedPropertyValue]);
         $data->setValue($built);
       }
       else {

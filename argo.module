@@ -19,8 +19,8 @@ use Psr\Log\LogLevel;
  * Without this deletion log, we would have to check all entities and subtract
  * the ones not present after the last sync. The deletion log is a more efficient alternative.
  *
- * @param EntityInterface $entity
- * Entity about to be deleted.
+ * @param Drupal\Core\Entity\EntityInterface $entity
+ *   Entity about to be deleted.
  *
  * @throws Exception
  */
@@ -34,7 +34,8 @@ function argo_entity_delete(EntityInterface $entity) {
           'bundle' => $entity->bundle(),
           'uuid' => $entity->uuid(),
         ])->execute();
-    } catch (Exception $e) {
+    }
+    catch (Exception $e) {
       \Drupal::logger('argo')->log(LogLevel::ERROR, 'Failed to log entity deletion to Argo');
       throw $e;
     }

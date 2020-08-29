@@ -106,6 +106,7 @@ class ContentEntityExport {
                         $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has no prop defs for values');
 
                         foreach ($this->flattenProp($value) as $key => $value) {
+                          // Map keys are marked in path with '!' to differentiate from property keys.
                           $propertiesOut[] = [
                             'name' => $propName,
                             'label' => (string) $propDef->getLabel(),

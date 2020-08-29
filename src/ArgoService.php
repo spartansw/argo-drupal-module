@@ -73,7 +73,7 @@ class ArgoService implements ArgoServiceInterface {
    *   Content entity translation service.
    * @param \Drupal\content_moderation\ModerationInformationInterface $moderationInfo
    *   Moderation info.
-   * @param Connection $connection
+   * @param \Drupal\Core\Database\Connection $connection
    *   DB connection.
    */
   public function __construct(
@@ -170,6 +170,9 @@ class ArgoService implements ArgoServiceInterface {
     $translated->save();
   }
 
+  /**
+   * Get column name for a given table mapping and key.
+   */
   private function getColumnName(TableMappingInterface $tableMapping, string $key) {
     return $tableMapping->getColumnNames($key)['value'];
   }
@@ -193,7 +196,7 @@ class ArgoService implements ArgoServiceInterface {
     $dataTable = $entityStorage->getDataTable();
     $revisionTable = $entityStorage->getRevisionTable();
 
-    /** @var TableMappingInterface $tableMapping */
+    /** @var \Drupal\Core\Entity\Sql\TableMappingInterface $tableMapping */
     $tableMapping = $entityStorage->getTableMapping();
 
     $idCol = $this->getColumnName($tableMapping, $idKey);
@@ -201,12 +204,12 @@ class ArgoService implements ArgoServiceInterface {
     $changedCol = $this->getColumnName($tableMapping, $changedFieldName);
     $revisionCol = $this->getColumnName($tableMapping, $revisionCreatedKey);
 
-    // Handmade query due to Entity Storage API adding unnecessary and slow joins
-    // Get all entity IDs of a given type modified since last update
+    // Handmade query due to Entity Storage API adding unnecessary and slow joins.
+    // Get all entity IDs of a given type modified since last update.
     $rawIds = $this->connection->query('
     SELECT base.' . $idCol . '
-    FROM {'. $baseTable . '} AS base
-         LEFT JOIN {' . $dataTable . '} AS data ON data.'. $idCol .' = base. ' . $idCol . '
+    FROM {' . $baseTable . '} AS base
+         LEFT JOIN {' . $dataTable . '} AS data ON data.' . $idCol . ' = base. ' . $idCol . '
          LEFT JOIN {' . $revisionTable . '} revision ON revision. ' . $idCol . ' = base.' . $idCol . '
     WHERE (data.' . $langcodeCol . '!= \'und\')
       AND ((data.' . $changedCol . ' > :last_update) OR (revision.' . $revisionCol . ' > :last_update))
