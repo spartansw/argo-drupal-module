@@ -63,9 +63,9 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * The service constructor.
    *
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   The core entity type manager service.
-   * @param \Drupal\Core\Entity\EntityFieldManagerInterface $entity_field_manager
+   * @param \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager
    *   The core entity field manager service.
    * @param ContentEntityExport $contentEntityExport
    *   Exporter.
@@ -77,15 +77,15 @@ class ArgoService implements ArgoServiceInterface {
    *   DB connection.
    */
   public function __construct(
-    EntityTypeManagerInterface $entity_type_manager,
-    EntityFieldManagerInterface $entity_field_manager,
+    EntityTypeManagerInterface $entityTypeManager,
+    EntityFieldManagerInterface $entityFieldManager,
     ContentEntityExport $contentEntityExport,
     ContentEntityTranslate $contentEntityTranslate,
     ModerationInformationInterface $moderationInfo,
     Connection $connection
   ) {
-    $this->entityTypeManager = $entity_type_manager;
-    $this->entityFieldManager = $entity_field_manager;
+    $this->entityTypeManager = $entityTypeManager;
+    $this->entityFieldManager = $entityFieldManager;
     $this->contentEntityExport = $contentEntityExport;
     $this->contentEntityTranslate = $contentEntityTranslate;
     $this->moderationInfo = $moderationInfo;
