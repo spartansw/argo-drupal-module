@@ -174,13 +174,18 @@ class ContentEntityExport {
     $translationOut['warnings'] = $warnings;
 
     $references = [];
-    $traversableTypes = [
+    $traversableEntityTypes = [
       'paragraph' => TRUE,
     ];
+    $traversableContentTypes = [
+      'person' => TRUE,
+    ];
     foreach ($entity->referencedEntities() as $referencedEntity) {
-      if (isset($traversableTypes[$referencedEntity->getEntityTypeId()])) {
+      $referencedEntityTypeId = $referencedEntity->getEntityTypeId();
+      if (isset($traversableEntityTypes[$referencedEntityTypeId]) ||
+        ($referencedEntityTypeId === 'node' && isset($traversableContentTypes[$referencedEntity->bundle()]))) {
         $references[] = [
-          'entityType' => $referencedEntity->getEntityTypeId(),
+          'entityType' => $referencedEntityTypeId,
           'uuid' => $referencedEntity->uuid(),
         ];
       }
