@@ -1,12 +1,6 @@
-name: ARGO Connector
-description: Manage translations via ARGO
-package: ARGO
-
+name: Argo Connector
+description: Manage translations via Argo
+package: Argo
 type: module
 core: 8.x
-
-dependencies:
-
-configure:
-
 php: 7.3

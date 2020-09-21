@@ -1,14 +1,13 @@
 {
-  "name": "spartansw/argo",
+  "name": "spartansw/argo-drupal-module",
+  "description": "Exposes resources necessary for tracking and translating content in Drupal using Argo",
   "type": "drupal-module",
-  "description": "Exposes resources necessary for tracking and translating content in Drupal",
   "keywords": ["Drupal"],
-  "license": "GPL-2.0+",
   "homepage": "https://github.com/spartansw/argo-drupal-module",
-  "minimum-stability": "dev",
+  "license": "GPL-2.0+",
+  "authors": [],
   "support": {
     "issues": "https://github.com/spartansw/argo-drupal-module/issues",
     "source": "https://github.com/spartansw/argo-drupal-module"
-  },
-  "require": { }
+  }
 }
