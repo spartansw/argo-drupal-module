@@ -21,8 +21,6 @@ use Psr\Log\LogLevel;
  *
  * @param Drupal\Core\Entity\EntityInterface $entity
  *   Entity about to be deleted.
- *
- * @throws Exception
  */
 function argo_entity_delete(EntityInterface $entity) {
   if ($entity instanceof ContentEntityInterface && $entity->isTranslatable()) {
@@ -36,8 +34,7 @@ function argo_entity_delete(EntityInterface $entity) {
         ])->execute();
     }
     catch (Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, 'Failed to log entity deletion to Argo');
-      throw $e;
+      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
     }
   }
 }
