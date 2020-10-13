@@ -102,7 +102,7 @@ class ArgoService implements ArgoServiceInterface {
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
-   * @param int $revision_id
+   * @param int $revisionId
    *   (optional) Entity revision ID.
    *
    * @return array
@@ -112,8 +112,8 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    */
-  public function export(string $entityType, string $uuid, int $revision_id = NULL) {
-    $entity = $this->loadEntity($entityType, $uuid, $revision_id);
+  public function export(string $entityType, string $uuid, int $revisionId = NULL) {
+    $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     return $this->contentEntityExport->export($entity);
   }
 
@@ -135,8 +135,8 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
   public function translate(string $entityType, string $uuid, array $translation) {
-    $revision_id = $translation['revisionId'] ?? NULL;
-    $entity = $this->loadEntity($entityType, $uuid, $revision_id);
+    $revisionId = $translation['revisionId'] ?? NULL;
+    $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     $translated = $this->contentEntityTranslate->translate($entity, $translation);
 
     // Paragraphs are never displayed on their own, and so we should not apply
@@ -180,9 +180,9 @@ class ArgoService implements ArgoServiceInterface {
    * @param string $entityType
    *   Entity type ID.
    * @param string $uuid
-   *   Entity UUID.
-   *
-   * @param int|null $revision_id
+   *   Entity UUID
+   * @param int|null $revisionId
+   *   (optional) Entity revision ID.
    *
    * @return \Drupal\Core\Entity\ContentEntityInterface
    *   The loaded entity.
@@ -190,17 +190,17 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    * @throws \Drupal\Core\TypedData\Exception\MissingDataException
    */
-  private function loadEntity(string $entityType, string $uuid, int $revision_id = NULL) {
+  private function loadEntity(string $entityType, string $uuid, int $revisionId = NULL) {
     // Unfortunately loading an entity by its uuid will only load the latest
     // "published" revision which could be different from the original entity.
     // Until Drupal core supports loading entity revisions by a uuid, we try and
     // load the entity by its revision id.
     // @see https://www.drupal.org/project/drupal/issues/1812202
-    if (isset($revision_id)) {
+    if (isset($revisionId)) {
       /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
       $entity = $this->entityTypeManager
         ->getStorage($entityType)
-        ->loadRevision($revision_id);
+        ->loadRevision($revisionId);
     } else {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.

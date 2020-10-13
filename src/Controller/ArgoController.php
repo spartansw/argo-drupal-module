@@ -76,9 +76,9 @@ class ArgoController extends ControllerBase {
   public function exportContentEntity(Request $request) {
     $entityType = $request->get('type');
     $uuid = $request->get('uuid');
-    $revision_id = $request->get('revision_id');
+    $revisionId = $request->get('revisionId');
 
-    $export = $this->argoService->export($entityType, $uuid, $revision_id);
+    $export = $this->argoService->export($entityType, $uuid, $revisionId);
 
     return new JsonResponse($export);
   }

@@ -14,13 +14,13 @@ interface ArgoServiceInterface {
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
-   * @param int $revision_id
+   * @param int $revisionId
    *   Entity revision ID.
    *
    * @return mixed
    *   Export object.
    */
-  public function export(string $entityType, string $uuid, int $revision_id);
+  public function export(string $entityType, string $uuid, int $revisionId);
 
   /**
    * Translate.
