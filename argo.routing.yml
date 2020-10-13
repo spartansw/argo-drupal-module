@@ -33,7 +33,7 @@ argo.reset_deletion_log:
     no_cache: TRUE
 
 argo.export:
-  path: /argo/content-entity/{type}/{uuid}/export
+  path: /argo/content-entity/{type}/{uuid}/export/{revision_id}
   defaults:
     _title: 'Export content entity for translation'
     _controller: '\Drupal\argo\Controller\ArgoController::exportContentEntity'

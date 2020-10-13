@@ -187,6 +187,7 @@ class ContentEntityExport {
         $references[] = [
           'entityType' => $referencedEntityTypeId,
           'uuid' => $referencedEntity->uuid(),
+          'revisionId' => $referencedEntity->getRevisionId(),
         ];
       }
     }
