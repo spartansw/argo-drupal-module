@@ -5,6 +5,7 @@ namespace Drupal\argo;
 use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
+use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
@@ -12,6 +13,8 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Core\TypedData\Exception\MissingDataException;
+use Drupal\paragraphs\ParagraphInterface;
+use Drupal\user\EntityOwnerInterface;
 
 /**
  * Interacts with Argo.
@@ -99,6 +102,8 @@ class ArgoService implements ArgoServiceInterface {
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
+   * @param int $revisionId
+   *   (optional) Entity revision ID.
    *
    * @return array
    *   Export.
@@ -107,15 +112,8 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    */
-  public function export(string $entityType, string $uuid) {
-    $loadResult = $this->entityTypeManager
-      ->getStorage($entityType)
-      ->loadByProperties(['uuid' => $uuid]);
-    if (empty($loadResult)) {
-      throw new MissingDataException();
-    }
-    $entity = $loadResult[array_keys($loadResult)[0]];
-
+  public function export(string $entityType, string $uuid, int $revisionId = NULL) {
+    $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     return $this->contentEntityExport->export($entity);
   }
 
@@ -137,18 +135,13 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
   public function translate(string $entityType, string $uuid, array $translation) {
-    $loadResult = $this->entityTypeManager
-      ->getStorage($entityType)
-      ->loadByProperties(['uuid' => $uuid]);
-    if (empty($loadResult)) {
-      throw new MissingDataException();
-    }
-    /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
-    $entity = $loadResult[array_keys($loadResult)[0]];
-
+    $revisionId = $translation['revisionId'] ?? NULL;
+    $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     $translated = $this->contentEntityTranslate->translate($entity, $translation);
 
-    if ($translated instanceof EntityPublishedInterface) {
+    // Paragraphs are never displayed on their own, and so we should not apply
+    // moderation states to these entities.
+    if ($translated instanceof EntityPublishedInterface && !($translated instanceof ParagraphInterface)) {
       $translated->setUnpublished();
     }
     if (isset($translation['stateId'])) {
@@ -167,7 +160,61 @@ class ArgoService implements ArgoServiceInterface {
       }
       $translated->set('moderation_state', $stateId);
     }
+
+    // Update changed time of the entity so we are not saving new revisions with
+    // timestamps in the past.
+    if ($translated instanceof EntityChangedInterface) {
+      $translated->setChangedTime(time());
+    }
+    // Also update the author to reflect the Argo service account.
+    if ($translated instanceof EntityOwnerInterface) {
+      $current_user = \Drupal::currentUser();
+      $translated->setOwnerId($current_user->id());
+    }
     $translated->save();
+  }
+
+  /**
+   * Loads an entity by its uuid or revision Id - if available.
+   *
+   * @param string $entityType
+   *   Entity type ID.
+   * @param string $uuid
+   *   Entity UUID
+   * @param int|null $revisionId
+   *   (optional) Entity revision ID.
+   *
+   * @return \Drupal\Core\Entity\ContentEntityInterface
+   *   The loaded entity.
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
+   */
+  private function loadEntity(string $entityType, string $uuid, int $revisionId = NULL) {
+    // Unfortunately loading an entity by its uuid will only load the latest
+    // "published" revision which could be different from the original entity.
+    // Until Drupal core supports loading entity revisions by a uuid, we try and
+    // load the entity by its revision id.
+    // @see https://www.drupal.org/project/drupal/issues/1812202
+    if (isset($revisionId)) {
+      /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
+      $entity = $this->entityTypeManager
+        ->getStorage($entityType)
+        ->loadRevision($revisionId);
+    } else {
+      // If the revision id is not available, we resort to the uuid. Some
+      // entities might not support revisions.
+      $loadResult = $this->entityTypeManager
+        ->getStorage($entityType)
+        ->loadByProperties(['uuid' => $uuid]);
+      if (empty($loadResult)) {
+        throw new MissingDataException();
+      }
+      /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
+      $entity = $loadResult[array_keys($loadResult)[0]];
+    }
+
+    return $entity;
   }
 
   /**
@@ -246,10 +293,11 @@ class ArgoService implements ArgoServiceInterface {
         'typeId' => $entity->getEntityTypeId(),
         'bundle' => $entity->bundle(),
         'id' => $entity->id(),
+        'revisionId' => $entity->getRevisionId(),
         'uuid' => $entity->uuid(),
         'path' => $entity->toUrl()->toString(),
         'langcode' => $entity->language()->getId(),
-        'changed' => $changedTime,
+        'changed' => $changedTime
       ];
     }
 
@@ -312,14 +360,17 @@ class ArgoService implements ArgoServiceInterface {
   }
 
   /**
-   * Get entity UUID.
+   * Get entity UUID & revision ID.
    */
-  public function entityUuid($type, $id) {
+  public function entityInfo($type, $id) {
     $entity = $this->entityTypeManager
       ->getStorage($type)
       ->load($id);
 
-    return $entity->uuid();
+    return [
+      'uuid' => $entity->uuid(),
+      'revisionId' => $this->contentEntityExport->getRevisionId($entity)
+    ];
   }
 
 }

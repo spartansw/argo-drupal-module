@@ -53,7 +53,8 @@ class ContentEntityTranslate {
     }
 
     // Copy src fields to target.
-    $srcEntity->addTranslation($targetLangcode, $srcEntity->getFields());
+    $array = $srcEntity->toArray();
+    $srcEntity->addTranslation($targetLangcode, $array);
 
     $targetEntity = $srcEntity->getTranslation($targetLangcode);
 

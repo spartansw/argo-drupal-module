@@ -44,6 +44,18 @@ argo.export:
   options:
     no_cache: TRUE
 
+argo.export_revision:
+  path: /argo/content-entity/{type}/{uuid}/export/{revisionId}
+  defaults:
+    _title: 'Export content entity revision for translation'
+    _controller: '\Drupal\argo\Controller\ArgoController::exportContentEntityRevision'
+  requirements:
+    _format: 'json'
+    _permission: 'translate content using argo'
+  methods: ['GET']
+  options:
+    no_cache: TRUE
+
 argo.translation:
   path: /argo/content-entity/{type}/{uuid}/translation
   defaults:

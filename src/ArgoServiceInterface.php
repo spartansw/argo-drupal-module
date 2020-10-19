@@ -14,11 +14,13 @@ interface ArgoServiceInterface {
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
+   * @param int $revisionId
+   *   Entity revision ID.
    *
    * @return mixed
    *   Export object.
    */
-  public function export(string $entityType, string $uuid);
+  public function export(string $entityType, string $uuid, int $revisionId = NULL);
 
   /**
    * Translate.
@@ -48,8 +50,8 @@ interface ArgoServiceInterface {
   public function resetDeletionLog(array $deleted);
 
   /**
-   * Get entity UUID.
+   * Get entity UUID & revision ID.
    */
-  public function entityUuid($type, $id);
+  public function entityInfo($type, $id);
 
 }

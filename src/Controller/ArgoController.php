@@ -83,6 +83,25 @@ class ArgoController extends ControllerBase {
   }
 
   /**
+   * Exports a content entity revision for translation.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function exportContentEntityRevision(Request $request) {
+    $entityType = $request->get('type');
+    $uuid = $request->get('uuid');
+    $revisionId = $request->get('revisionId');
+
+    $export = $this->argoService->export($entityType, $uuid, $revisionId);
+
+    return new JsonResponse($export);
+  }
+
+  /**
    * Translates fields on a single entity.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
@@ -172,9 +191,9 @@ class ArgoController extends ControllerBase {
     $type = $request->get('type');
     $id = $request->get('id');
 
-    $uuid = $this->argoService->entityUuid($type, $id);
+    $entityInfo = $this->argoService->entityInfo($type, $id);
 
-    return new JsonResponse(['uuid' => $uuid]);
+    return new JsonResponse($entityInfo);
   }
 
 }
