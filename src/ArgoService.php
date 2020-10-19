@@ -297,7 +297,7 @@ class ArgoService implements ArgoServiceInterface {
         'uuid' => $entity->uuid(),
         'path' => $entity->toUrl()->toString(),
         'langcode' => $entity->language()->getId(),
-        'changed' => $changedTime,
+        'changed' => $changedTime
       ];
     }
 
@@ -360,14 +360,17 @@ class ArgoService implements ArgoServiceInterface {
   }
 
   /**
-   * Get entity UUID.
+   * Get entity UUID & revision ID.
    */
-  public function entityUuid($type, $id) {
+  public function entityInfo($type, $id) {
     $entity = $this->entityTypeManager
       ->getStorage($type)
       ->load($id);
 
-    return $entity->uuid();
+    return [
+      'uuid' => $entity->uuid(),
+      'revisionId' => $this->contentEntityExport->getRevisionId($entity)
+    ];
   }
 
 }

@@ -3,6 +3,8 @@
 namespace Drupal\argo;
 
 use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\RevisionableInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 
 /**
@@ -184,14 +186,16 @@ class ContentEntityExport {
       $referencedEntityTypeId = $referencedEntity->getEntityTypeId();
       if (isset($traversableEntityTypes[$referencedEntityTypeId]) ||
         ($referencedEntityTypeId === 'node' && isset($traversableContentTypes[$referencedEntity->bundle()]))) {
+
         $references[] = [
           'entityType' => $referencedEntityTypeId,
           'uuid' => $referencedEntity->uuid(),
-          'revisionId' => $referencedEntity->getRevisionId(),
+          'revisionId' => $this->getRevisionId($referencedEntity),
         ];
       }
     }
     $translationOut['references'] = $references;
+    $translationOut['revisionId'] = $this->getRevisionId($entity);
 
     $translationOut['items'] = $this->flattenExport($translationOut['fields']);
     unset($translationOut['fields']);
@@ -262,4 +266,15 @@ class ContentEntityExport {
     return $flat;
   }
 
+  /**
+   * @return mixed|null
+   *   Revision ID if entity has one, else NULL.
+   */
+  public function getRevisionId(EntityInterface $entity) {
+    $revisionId = NULL;
+    if ($entity instanceof RevisionableInterface) {
+      $revisionId = $entity->getRevisionId();
+    }
+    return $revisionId;
+  }
 }
