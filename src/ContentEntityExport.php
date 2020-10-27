@@ -109,13 +109,15 @@ class ContentEntityExport {
 
                         foreach ($this->flattenProp($value) as $key => $value) {
                           // Map keys are marked in path with '!' to differentiate from property keys.
-                          $propertiesOut[] = [
-                            'name' => $propName,
-                            'label' => (string) $propDef->getLabel(),
-                            'type' => $dataType,
-                            'value' => $value,
-                            'path' => $propertyPath . '!' . $key,
-                          ];
+                          if (is_string($value)) {
+                            $propertiesOut[] = [
+                              'name' => $propName,
+                              'label' => (string) $propDef->getLabel(),
+                              'type' => $dataType,
+                              'value' => $value,
+                              'path' => $propertyPath . '!' . $key,
+                            ];
+                          }
                         }
                         continue;
                       }
@@ -132,6 +134,9 @@ class ContentEntityExport {
                           $outValue = $value;
                         }
                       }
+                    }
+                    else if (count(array_keys($value)) === 0) {
+                      continue;
                     }
                     else {
                       $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown map type');
