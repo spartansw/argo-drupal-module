@@ -182,12 +182,13 @@ class ArgoService implements ArgoServiceInterface {
    * @param string $entityType
    *   Entity type ID.
    * @param string $uuid
-   *   Entity UUID
+   *   Entity UUID.
    * @param int|null $revisionId
    *   (optional) Entity revision ID.
    *
    * @return \Drupal\Core\Entity\ContentEntityInterface
    *   The loaded entity.
+   *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    * @throws \Drupal\Core\TypedData\Exception\MissingDataException
@@ -203,7 +204,8 @@ class ArgoService implements ArgoServiceInterface {
       $entity = $this->entityTypeManager
         ->getStorage($entityType)
         ->loadRevision($revisionId);
-    } else {
+    }
+    else {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
       $loadResult = $this->entityTypeManager
