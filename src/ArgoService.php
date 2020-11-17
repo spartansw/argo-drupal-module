@@ -10,9 +10,11 @@ use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\RevisionableInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Core\TypedData\Exception\MissingDataException;
+use Drupal\node\Entity\Node;
 use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
 
@@ -212,6 +214,18 @@ class ArgoService implements ArgoServiceInterface {
       }
       /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
       $entity = $loadResult[array_keys($loadResult)[0]];
+      // If there's no provided vid but the entity is revisionable,
+      // get the latest vid and fetch the latest revision.
+      if ($entity instanceof RevisionableInterface) {
+        /** @var \Drupal\Core\Entity\RevisionableStorageInterface $storage */
+        $storage = $this->entityTypeManager
+          ->getStorage($entityType);
+        $vid = $storage->getLatestRevisionId($entity->id());
+        $entity = $storage->loadRevision($vid);
+        if (is_null($entity)) {
+          throw new MissingDataException();
+        }
+      }
     }
 
     return $entity;
