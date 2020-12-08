@@ -11,8 +11,10 @@ use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
+use Drupal\Core\Entity\SynchronizableInterface;
 use Drupal\Core\Language\Language;
 use Drupal\Core\TypedData\Exception\MissingDataException;
+use Drupal\node\NodeInterface;
 use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
 
@@ -137,6 +139,11 @@ class ArgoService implements ArgoServiceInterface {
   public function translate(string $entityType, string $uuid, array $translation) {
     $revisionId = $translation['revisionId'] ?? NULL;
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
+    // Mark the entity ready for syncing. That way we can update the current
+    // revision, and prevent Drupal from creating a new revision.
+    if ($entity instanceof SynchronizableInterface) {
+      $entity->setSyncing(TRUE);
+    }
     $translated = $this->contentEntityTranslate->translate($entity, $translation);
 
     // Paragraphs are never displayed on their own, and so we should not apply
@@ -161,17 +168,33 @@ class ArgoService implements ArgoServiceInterface {
       $translated->set('moderation_state', $stateId);
     }
 
-    // Update changed time of the entity so we are not saving new revisions with
-    // timestamps in the past.
-    if ($translated instanceof EntityChangedInterface) {
-      $translated->setChangedTime(time());
-    }
-    // Also update the author to reflect the Argo service account.
+    // Update the author to reflect the Argo service account.
     if ($translated instanceof EntityOwnerInterface) {
       $current_user = \Drupal::currentUser();
       $translated->setOwnerId($current_user->id());
     }
     $translated->save();
+
+    // Now append this node translation to the latest node revision as well.
+    // This is necessary when the source node has newer revisions ahead of the
+    // node revision that was sent for translation.
+    if (!$entity->isLatestRevision() && $entity instanceof NodeInterface) {
+      // Load the latest revision of this node.
+      $latest_revision = $this->loadEntity($entityType, $uuid);
+      // Directly update this revision, and prevent Drupal from creating a
+      // new revision.
+      if ($latest_revision instanceof SynchronizableInterface) {
+        $latest_revision->setSyncing(TRUE);
+      }
+      // Overwrite the existing translation.
+      $langcode = $translated->language()->getId();
+      if ($latest_revision->hasTranslation($langcode)) {
+        $latest_revision->removeTranslation($langcode);
+      }
+      $latest_revision->addTranslation($langcode, $translated->toArray());
+      $translated_latest_revision = $latest_revision->getTranslation($langcode);
+      $translated_latest_revision->save();
+    }
   }
 
   /**
