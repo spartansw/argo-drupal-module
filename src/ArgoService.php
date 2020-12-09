@@ -173,22 +173,35 @@ class ArgoService implements ArgoServiceInterface {
       $current_user = \Drupal::currentUser();
       $translated->setOwnerId($current_user->id());
     }
-    $translated->save();
 
-    // Now append this node translation to the latest node revision as well.
-    // This is necessary when the source node has newer revisions ahead of the
-    // node revision that was sent for translation.
-    if (!$entity->isLatestRevision() && $entity instanceof NodeInterface) {
-      // Load the latest revision of this node.
+    // If we are working with a paragraph, we can immediate update the existing
+    // revision.
+    if ($entity instanceof ParagraphInterface) {
+      $translated->save();
+    }
+    // Otherwise, append this entity translation to the latest entity revision.
+    // This is necessary when the source entity has newer revisions ahead of the
+    // entity revision that was sent for translation.
+    else {
       $latest_revision = $this->loadEntity($entityType, $uuid);
-      // Directly update this revision, and prevent Drupal from creating a
-      // new revision.
-      if ($latest_revision instanceof SynchronizableInterface) {
+      $langcode = $translated->language()->getId();
+
+      // To prevent revision bloat, we update the existing revision, but only:
+      // - if the latest revision is not the default revision.
+      // - if the latest revision is the default revision, but does not have a
+      //   a translation for the target language.
+      // - if the latest revision is the default revision, but its translation
+      //   has a status of 0 (not published).
+      $is_default_revision = $latest_revision->isDefaultRevision();
+      $translation_exists = $latest_revision->hasTranslation($langcode);
+      $is_published = $latest_revision->get('status') === 1;
+      $can_sync = !$is_default_revision || !$translation_exists || !$is_published;
+      if ($latest_revision instanceof SynchronizableInterface && $can_sync) {
         $latest_revision->setSyncing(TRUE);
       }
-      // Overwrite the existing translation.
-      $langcode = $translated->language()->getId();
-      if ($latest_revision->hasTranslation($langcode)) {
+
+      // Update the existing translation.
+      if ($translation_exists) {
         $latest_revision->removeTranslation($langcode);
       }
       $latest_revision->addTranslation($langcode, $translated->toArray());
