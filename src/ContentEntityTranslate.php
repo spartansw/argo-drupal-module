@@ -2,8 +2,8 @@
 
 namespace Drupal\argo;
 
-use Drupal\content_moderation\Plugin\WorkflowType\ContentModeration;
 use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\paragraphs\ParagraphInterface;
 use Drupal\typed_data\DataFetcherInterface;
 
 /**
@@ -47,16 +47,10 @@ class ContentEntityTranslate {
    */
   public function translate(ContentEntityInterface $srcEntity, array $translation) {
     $targetLangcode = $translation['targetLangcode'];
-    if ($srcEntity->hasTranslation($targetLangcode)) {
-      // Must remove existing translation because it might not have all fields.
-      $srcEntity->removeTranslation($targetLangcode);
-    }
-
-    // Copy src fields to target.
-    $array = $srcEntity->toArray();
-    $srcEntity->addTranslation($targetLangcode, $array);
-
     $targetEntity = $srcEntity->getTranslation($targetLangcode);
+
+    // Handle paragraphs.
+    $this->translateParagraphs($targetEntity, $translation);
 
     $metatags = [];
     foreach ($translation['items'] as $translatedProperty) {
@@ -93,6 +87,75 @@ class ContentEntityTranslate {
     }
 
     return $targetEntity;
+  }
+
+  /**
+   * @param \Drupal\Core\Entity\ContentEntityInterface $targetEntity
+   * @param array $translation
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  private function translateParagraphs(ContentEntityInterface $targetEntity, array $translation) {
+    $targetLangcode = $translation['targetLangcode'];
+    $entity_type_manager = \Drupal::entityTypeManager();
+    $paragraph_storage = $entity_type_manager->getStorage('paragraph');
+    /** @var \Drupal\field\FieldConfigInterface[] $field_definitions */
+    $field_definitions = $entity_type_manager->getStorage('field_config')->loadByProperties([
+      'entity_type' => $targetEntity->getEntityTypeId(),
+      'bundle' => $targetEntity->bundle(),
+      'field_type' => 'entity_reference_revisions',
+    ]);
+
+    foreach($field_definitions as $field_definition) {
+      // Only apply this logic to paragraph fields.
+      if ($field_definition->getFieldStorageDefinition()
+          ->getSetting('target_type') !== 'paragraph') {
+        continue;
+      }
+
+      $field_name = $field_definition->getName();
+      if (!$targetEntity->get($field_name)->isEmpty()) {
+        foreach ($targetEntity->get($field_name) as $field) {
+          // Try and load the paragraph entity.
+          // - Look for the referenced entity on the field first.
+          // - Then try and load it by its revision_id.
+          // - Lastly load by it its entity id.
+          /** @var ParagraphInterface $paragraph */
+          $paragraph = $field->entity ?? NULL;
+          if (!isset($paragraph)) {
+            $value = $field->getValue();
+            if (isset($value['target_revision_id'])) {
+              $paragraph = $paragraph_storage->loadRevision($value['target_revision_id']);
+            }
+            elseif (isset($value['target_id'])) {
+              $paragraph = $paragraph_storage->load($value['target_id']);
+            }
+          }
+          if (!$paragraph instanceof ParagraphInterface) {
+            continue;
+          }
+
+          if (!empty($translation['nested_items'])) {
+            foreach ($translation['nested_items'] as $paragraph_translation) {
+              if ($paragraph->uuid() === $paragraph_translation['entityId']) {
+                if (!$paragraph->hasTranslation($targetLangcode)) {
+                  $array = $paragraph->toArray();
+                  $paragraph->addTranslation($targetLangcode, $array);
+                }
+                $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $paragraph_translation);
+                // @todo is this still necessary if we were to save them
+                // through asymmetrical translation?
+                $paragraph->setNewRevision(TRUE);
+                $paragraph->setNeedsSave(TRUE);
+                $field->entity = $paragraph;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   /**

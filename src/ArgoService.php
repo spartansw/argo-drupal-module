@@ -137,18 +137,39 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
   public function translate(string $entityType, string $uuid, array $translation) {
+    $langcode = $translation['targetLangcode'];
     $revisionId = $translation['revisionId'] ?? NULL;
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
-    // Mark the entity ready for syncing. That way we can update the current
-    // revision, and prevent Drupal from creating a new revision.
-    if ($entity instanceof SynchronizableInterface) {
-      $entity->setSyncing(TRUE);
-    }
-    $translated = $this->contentEntityTranslate->translate($entity, $translation);
+    $target_entity = $this->loadEntity($entityType, $uuid);
 
-    // Paragraphs are never displayed on their own, and so we should not apply
-    // moderation states to these entities.
-    if ($translated instanceof EntityPublishedInterface && !($translated instanceof ParagraphInterface)) {
+//    // We update the existing revision, but only:
+//    // - if the latest revision is not the default revision.
+//    // - if the latest revision is the default revision, but does not have a
+//    //   a translation for the target language.
+//    // - if the latest revision is the default revision, but its translation
+//    //   has a status of 0 (not published).
+//    $is_default_revision = $target_entity->isDefaultRevision();
+//    $translation_exists = $target_entity->hasTranslation($langcode);
+//    $is_published = $target_entity->get('status')->value;
+//    $can_sync = !$is_default_revision || !$translation_exists || !$is_published;
+//    if ($target_entity instanceof SynchronizableInterface && $can_sync) {
+//      $target_entity->setSyncing(TRUE);
+//    }
+//    else {
+//      $target_entity->setNewRevision(TRUE);
+//    }
+
+    if ($target_entity->hasTranslation($langcode)) {
+      // Must remove existing translation because it might not have all fields.
+      $target_entity->removeTranslation($langcode);
+    }
+
+    // Copy src fields to target.
+    $array = $entity->toArray();
+    $target_entity->addTranslation($langcode, $array);
+    $translated = $this->contentEntityTranslate->translate($target_entity, $translation);
+
+    if ($translated instanceof EntityPublishedInterface) {
       $translated->setUnpublished();
     }
     if (isset($translation['stateId'])) {
@@ -173,41 +194,7 @@ class ArgoService implements ArgoServiceInterface {
       $current_user = \Drupal::currentUser();
       $translated->setOwnerId($current_user->id());
     }
-
-    // If we are working with a paragraph, we can immediate update the existing
-    // revision.
-    if ($entity instanceof ParagraphInterface) {
-      $translated->save();
-    }
-    // Otherwise, append this entity translation to the latest entity revision.
-    // This is necessary when the source entity has newer revisions ahead of the
-    // entity revision that was sent for translation.
-    else {
-      $latest_revision = $this->loadEntity($entityType, $uuid);
-      $langcode = $translated->language()->getId();
-
-      // To prevent revision bloat, we update the existing revision, but only:
-      // - if the latest revision is not the default revision.
-      // - if the latest revision is the default revision, but does not have a
-      //   a translation for the target language.
-      // - if the latest revision is the default revision, but its translation
-      //   has a status of 0 (not published).
-      $is_default_revision = $latest_revision->isDefaultRevision();
-      $translation_exists = $latest_revision->hasTranslation($langcode);
-      $is_published = $latest_revision->get('status') === 1;
-      $can_sync = !$is_default_revision || !$translation_exists || !$is_published;
-      if ($latest_revision instanceof SynchronizableInterface && $can_sync) {
-        $latest_revision->setSyncing(TRUE);
-      }
-
-      // Update the existing translation.
-      if ($translation_exists) {
-        $latest_revision->removeTranslation($langcode);
-      }
-      $latest_revision->addTranslation($langcode, $translated->toArray());
-      $translated_latest_revision = $latest_revision->getTranslation($langcode);
-      $translated_latest_revision->save();
-    }
+    $translated->save();
   }
 
   /**
@@ -240,14 +227,26 @@ class ArgoService implements ArgoServiceInterface {
     } else {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
-      $loadResult = $this->entityTypeManager
-        ->getStorage($entityType)
-        ->loadByProperties(['uuid' => $uuid]);
-      if (empty($loadResult)) {
-        throw new MissingDataException();
-      }
-      /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
-      $entity = $loadResult[array_keys($loadResult)[0]];
+      /** @var \Drupal\Core\Entity\EntityRepositoryInterface $entity_repository */
+      $entity_repository = \Drupal::service('entity.repository');
+      $entity = $entity_repository->loadEntityByUuid($entityType, $uuid);
+      // Find the latest translation affected entity (e.g. draft revision).
+      $entity = $entity_repository->getActive($entityType, $entity->id(), []);
+//      $loadResult = $this->entityTypeManager
+//        ->getStorage($entityType)
+//        ->loadByProperties(['uuid' => $uuid]);
+//      if (empty($loadResult)) {
+//        throw new MissingDataException();
+//      }
+//      /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
+//      $entity = $loadResult[array_keys($loadResult)[0]];
+//      $revision_ids = $this->entityTypeManager
+//        ->getStorage($entityType)
+//        ->revisionIds($entity);
+//      $last_revision_id = end($revision_ids);
+//      $entity = $this->entityTypeManager
+//        ->getStorage($entityType)
+//        ->loadRevision($last_revision_id);
     }
 
     return $entity;
