@@ -3,6 +3,7 @@
 namespace Drupal\argo;
 
 use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\paragraphs\ParagraphInterface;
 use Drupal\typed_data\DataFetcherInterface;
 
@@ -19,15 +20,26 @@ class ContentEntityTranslate {
   private $dataFetcher;
 
   /**
+   * The core entity type manager service.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  private $entityTypeManager;
+
+  /**
    * The service constructor.
    *
    * @param \Drupal\typed_data\DataFetcherInterface $dataFetcher
    *   Data fetcher.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
+   *   The core entity type manager service.
    */
   public function __construct(
-    DataFetcherInterface $dataFetcher
+    DataFetcherInterface $dataFetcher,
+    EntityTypeManagerInterface $entityTypeManager
   ) {
     $this->dataFetcher = $dataFetcher;
+    $this->entityTypeManager = $entityTypeManager;
   }
 
   /**
@@ -98,10 +110,9 @@ class ContentEntityTranslate {
    */
   private function translateParagraphs(ContentEntityInterface $targetEntity, array $translation) {
     $targetLangcode = $translation['targetLangcode'];
-    $entity_type_manager = \Drupal::entityTypeManager();
-    $paragraph_storage = $entity_type_manager->getStorage('paragraph');
+    $paragraph_storage = $this->entityTypeManager->getStorage('paragraph');
     /** @var \Drupal\field\FieldConfigInterface[] $field_definitions */
-    $field_definitions = $entity_type_manager->getStorage('field_config')->loadByProperties([
+    $field_definitions = $this->entityTypeManager->getStorage('field_config')->loadByProperties([
       'entity_type' => $targetEntity->getEntityTypeId(),
       'bundle' => $targetEntity->bundle(),
       'field_type' => 'entity_reference_revisions',
@@ -144,8 +155,7 @@ class ContentEntityTranslate {
                   $paragraph->addTranslation($targetLangcode, $array);
                 }
                 $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $paragraph_translation);
-                // @todo is this still necessary if we were to save them
-                // through asymmetrical translation?
+                // @todo investigate converting paragraphs to asymmetrical here.
                 $paragraph->setNewRevision(TRUE);
                 $paragraph->setNeedsSave(TRUE);
                 $field->entity = $paragraph;

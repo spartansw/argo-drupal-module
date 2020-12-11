@@ -5,23 +5,26 @@ namespace Drupal\argo;
 use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
-use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
+use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
-use Drupal\Core\Entity\SynchronizableInterface;
 use Drupal\Core\Language\Language;
-use Drupal\Core\TypedData\Exception\MissingDataException;
-use Drupal\node\NodeInterface;
-use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
 
 /**
  * Interacts with Argo.
  */
 class ArgoService implements ArgoServiceInterface {
+
+  /**
+   * The core entity repository service.
+   *
+   * @var \Drupal\Core\Entity\EntityRepositoryInterface
+   */
+  private $entityRepository;
 
   /**
    * The core entity type manager service.
@@ -68,6 +71,8 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * The service constructor.
    *
+   * @param \Drupal\Core\Entity\EntityRepositoryInterface $entityRepository
+   *   The core entity repository service.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   The core entity type manager service.
    * @param \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager
@@ -82,6 +87,7 @@ class ArgoService implements ArgoServiceInterface {
    *   DB connection.
    */
   public function __construct(
+    EntityRepositoryInterface $entityRepository,
     EntityTypeManagerInterface $entityTypeManager,
     EntityFieldManagerInterface $entityFieldManager,
     ContentEntityExport $contentEntityExport,
@@ -89,6 +95,7 @@ class ArgoService implements ArgoServiceInterface {
     ModerationInformationInterface $moderationInfo,
     Connection $connection
   ) {
+    $this->entityRepository = $entityRepository;
     $this->entityTypeManager = $entityTypeManager;
     $this->entityFieldManager = $entityFieldManager;
     $this->contentEntityExport = $contentEntityExport;
@@ -142,23 +149,6 @@ class ArgoService implements ArgoServiceInterface {
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     $target_entity = $this->loadEntity($entityType, $uuid);
 
-//    // We update the existing revision, but only:
-//    // - if the latest revision is not the default revision.
-//    // - if the latest revision is the default revision, but does not have a
-//    //   a translation for the target language.
-//    // - if the latest revision is the default revision, but its translation
-//    //   has a status of 0 (not published).
-//    $is_default_revision = $target_entity->isDefaultRevision();
-//    $translation_exists = $target_entity->hasTranslation($langcode);
-//    $is_published = $target_entity->get('status')->value;
-//    $can_sync = !$is_default_revision || !$translation_exists || !$is_published;
-//    if ($target_entity instanceof SynchronizableInterface && $can_sync) {
-//      $target_entity->setSyncing(TRUE);
-//    }
-//    else {
-//      $target_entity->setNewRevision(TRUE);
-//    }
-
     if ($target_entity->hasTranslation($langcode)) {
       // Must remove existing translation because it might not have all fields.
       $target_entity->removeTranslation($langcode);
@@ -211,7 +201,7 @@ class ArgoService implements ArgoServiceInterface {
    *   The loaded entity.
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
+   * @throws \Drupal\Core\Entity\EntityStorageException
    */
   private function loadEntity(string $entityType, string $uuid, int $revisionId = NULL) {
     // Unfortunately loading an entity by its uuid will only load the latest
@@ -227,26 +217,9 @@ class ArgoService implements ArgoServiceInterface {
     } else {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
-      /** @var \Drupal\Core\Entity\EntityRepositoryInterface $entity_repository */
-      $entity_repository = \Drupal::service('entity.repository');
-      $entity = $entity_repository->loadEntityByUuid($entityType, $uuid);
+      $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);
       // Find the latest translation affected entity (e.g. draft revision).
-      $entity = $entity_repository->getActive($entityType, $entity->id(), []);
-//      $loadResult = $this->entityTypeManager
-//        ->getStorage($entityType)
-//        ->loadByProperties(['uuid' => $uuid]);
-//      if (empty($loadResult)) {
-//        throw new MissingDataException();
-//      }
-//      /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
-//      $entity = $loadResult[array_keys($loadResult)[0]];
-//      $revision_ids = $this->entityTypeManager
-//        ->getStorage($entityType)
-//        ->revisionIds($entity);
-//      $last_revision_id = end($revision_ids);
-//      $entity = $this->entityTypeManager
-//        ->getStorage($entityType)
-//        ->loadRevision($last_revision_id);
+      $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
     }
 
     return $entity;
