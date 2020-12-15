@@ -269,15 +269,15 @@ class ArgoService implements ArgoServiceInterface {
 
     // Handmade query due to Entity Storage API adding unnecessary and slow joins.
     // Get all entity IDs of a given type modified since last update.
-    $rawIds = $this->connection->query('
-    SELECT base.' . $idCol . '
-    FROM {' . $baseTable . '} AS base
-         LEFT JOIN {' . $dataTable . '} AS data ON data.' . $idCol . ' = base. ' . $idCol . '
-         LEFT JOIN {' . $revisionTable . '} revision ON revision. ' . $idCol . ' = base.' . $idCol . '
-    WHERE (data.' . $langcodeCol . '!= \'und\')
-      AND ((data.' . $changedCol . ' > :last_update) OR (revision.' . $revisionCol . ' > :last_update))
-    GROUP BY base.' . $idCol . ' ORDER BY base.' . $idCol . ' ASC;
-    ', ['last_update' => $lastUpdate])->fetchAll();
+    $rawIds = $this->connection->query("
+    SELECT base.{$idCol}
+    FROM {{$baseTable}} AS base
+         LEFT JOIN {{$dataTable}} AS data ON data.{$idCol} = base.{$idCol}
+         LEFT JOIN {{$revisionTable}} revision ON revision.{$idCol} = base.{$idCol}
+    WHERE (data.{$langcodeCol} != 'und')
+      AND ((data.{$changedCol} > :last_update) OR (revision.{$revisionCol} > :last_update))
+    GROUP BY base.{$idCol} ORDER BY base.{$idCol} ASC;
+    ", ['last_update' => $lastUpdate])->fetchAll();
 
     $ids = [];
     foreach ($rawIds as $id) {
