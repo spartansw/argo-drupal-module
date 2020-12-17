@@ -54,12 +54,21 @@ class ArgoController extends ControllerBase {
    */
   public function updatedContentEntities(Request $request) {
     $entityType = $request->get('type');
+    $onlyPublished = $request->get('only-published') === '1';
     $lastUpdate = intval($request->query->get('last-update'));
     $limit = intval($request->query->get('limit'));
     $offset = intval($request->query->get('offset'));
 
-    $updated = $this->argoService->getUpdated($entityType, $lastUpdate, $limit, $offset);
-
+    try {
+      $updated = $this->argoService->getUpdated($entityType, $onlyPublished, $lastUpdate, $limit, $offset);
+    }
+    catch (\Exception $e) {
+      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'message' => $e->__toString(),
+      ],
+        Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
     return new JsonResponse($updated);
   }
 
@@ -164,7 +173,7 @@ class ArgoController extends ControllerBase {
       $deleted = json_decode($request->getContent(), TRUE)['deleted'];
       $this->argoService->resetDeletionLog($deleted);
     }
-    catch (Exception $e) {
+    catch (\Exception $e) {
       \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
