@@ -245,14 +245,15 @@ class ArgoService implements ArgoServiceInterface {
    *
    * @param string $entityType
    *   Editorial content entity type ID.
-   * @param bool $onlyPublished
-   *   If true, return only latest published revisions. Else return the latest revisions regardless of status.
    * @param int $lastUpdate
    *   UNIX timestamp of last update query.
    * @param int $limit
    *   Number of records to return.
    * @param int $offset
    *   Query offset.
+   * @param array $publishedOnlyBundles
+   *   Return only latest published revisions for specified bundle names.
+   *   Else return the latest revisions regardless of status.
    * @param string $langcode
    *   Langcode.
    *
@@ -266,13 +267,13 @@ class ArgoService implements ArgoServiceInterface {
    *   If $entityType is not an editorial content entity.
    */
   public function getUpdated(string $entityType,
-                             bool $onlyPublished,
                              int $lastUpdate,
                              int $limit,
                              int $offset,
+                             array $publishedOnlyBundles = NULL,
                              string $langcode = NULL) {
     $langcode = is_null($langcode) ? 'en-US' : $langcode;
-    $onlyPublished = is_null($onlyPublished) ? FALSE : $onlyPublished;
+    $publishedOnlyBundles = is_null($publishedOnlyBundles) ? [''] : $publishedOnlyBundles;
     $offset = is_null($offset) ? 0 : $offset;
 
     /** @var \Drupal\Core\Entity\ContentEntityStorageInterface $entityStorage */
@@ -290,8 +291,11 @@ class ArgoService implements ArgoServiceInterface {
     $revisionIdKey = $contentEntityType->getKey('revision');
     $publishedKey = $contentEntityType->getKey('published');
     $langcodeKey = $contentEntityType->getKey('langcode');
+    $bundleCol = $contentEntityType->getKey('bundle');
 
+    /** @var \Drupal\Core\Entity\Sql\SqlContentEntityStorage $entityStorage */
     $revisionTable = $entityStorage->getRevisionDataTable();
+    $baseTable = $entityStorage->getBaseTable();
 
     /** @var \Drupal\Core\Entity\Sql\TableMappingInterface $tableMapping */
     $tableMapping = $entityStorage->getTableMapping();
@@ -306,29 +310,26 @@ class ArgoService implements ArgoServiceInterface {
 
     // Handmade query due to Entity Storage API adding unnecessary and slow joins.
     // Get all entity revision IDs of a given type changed since last update.
-
-    $onlyPublishedFilter = '';
-    if ($onlyPublished) {
-      $onlyPublishedFilter = "AND {$publishedCol} = 1";
-    }
-
     $results = $this->connection->query("
     WITH ranked_revision AS (
-        SELECT {$revisionIdCol},
-               ROW_NUMBER() OVER (PARTITION BY {$idCol} ORDER BY {$changedCol} DESC) AS rn
+        SELECT revision.{$revisionIdCol},
+               ROW_NUMBER() OVER (PARTITION BY revision.{$idCol} ORDER BY revision.{$changedCol} DESC) AS rn
         FROM {$revisionTable} AS revision
-        WHERE {$langcodeCol} = :langcode
-          AND ({$changedCol} > :last_update OR {$changedCol} IS NULL)
-          {$onlyPublishedFilter}
-        GROUP BY {$idCol}, {$revisionIdCol}
+          JOIN {$baseTable} AS base ON revision.{$idCol} = base.{$idCol}
+        WHERE revision.{$langcodeCol} = :langcode
+          AND (revision.{$changedCol} > :last_update OR revision.{$changedCol} IS NULL)
+          AND ((base.{$bundleCol} IN (:published_only_bundles[]) AND revision.{$publishedCol} = 1) OR 
+            base.{$bundleCol} NOT IN (:published_only_bundles[]))
+        GROUP BY revision.{$idCol}, revision.{$revisionIdCol}
     )
     SELECT {$revisionIdCol}
     FROM ranked_revision
     WHERE rn = 1
     ORDER BY {$revisionIdCol}; 
     ", [
-      'last_update' => $lastUpdate,
-      'langcode' => $langcode
+      ':last_update' => $lastUpdate,
+      ':langcode' => $langcode,
+      ':published_only_bundles[]' => $publishedOnlyBundles
     ])->fetchAll();
 
     $revisionIds = [];
