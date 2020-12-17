@@ -253,6 +253,8 @@ class ArgoService implements ArgoServiceInterface {
    *   Number of records to return.
    * @param int $offset
    *   Query offset.
+   * @param string $langcode
+   *   Langcode.
    *
    * @return array
    *   Editorial content entities updated since $lastUpdate, or have no change timestamp.
@@ -263,7 +265,16 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Exception
    *   If $entityType is not an editorial content entity.
    */
-  public function getUpdated(string $entityType, bool $onlyPublished, int $lastUpdate, int $limit, int $offset) {
+  public function getUpdated(string $entityType,
+                             bool $onlyPublished,
+                             int $lastUpdate,
+                             int $limit,
+                             int $offset,
+                             string $langcode = NULL) {
+    $langcode = is_null($langcode) ? 'en-US' : $langcode;
+    $onlyPublished = is_null($onlyPublished) ? FALSE : $onlyPublished;
+    $offset = is_null($offset) ? 0 : $offset;
+
     /** @var \Drupal\Core\Entity\ContentEntityStorageInterface $entityStorage */
     $entityStorage = $this->entityTypeManager
       ->getStorage($entityType);
@@ -306,7 +317,7 @@ class ArgoService implements ArgoServiceInterface {
         SELECT {$revisionIdCol},
                ROW_NUMBER() OVER (PARTITION BY {$idCol} ORDER BY {$changedCol} DESC) AS rn
         FROM {$revisionTable} AS revision
-        WHERE {$langcodeCol} = 'en-US'
+        WHERE {$langcodeCol} = :langcode
           AND ({$changedCol} > :last_update OR {$changedCol} IS NULL)
           {$onlyPublishedFilter}
         GROUP BY {$idCol}, {$revisionIdCol}
@@ -315,7 +326,10 @@ class ArgoService implements ArgoServiceInterface {
     FROM ranked_revision
     WHERE rn = 1
     ORDER BY {$revisionIdCol}; 
-    ", ['last_update' => $lastUpdate])->fetchAll();
+    ", [
+      'last_update' => $lastUpdate,
+      'langcode' => $langcode
+    ])->fetchAll();
 
     $revisionIds = [];
     foreach ($results as $result) {
@@ -348,7 +362,8 @@ class ArgoService implements ArgoServiceInterface {
         'uuid' => $entity->uuid(),
         'path' => $entity->toUrl()->toString(),
         'langcode' => $entity->language()->getId(),
-        'changed' => $changedTime
+        'changed' => $changedTime,
+        'published' => $entity->isPublished()
       ];
     }
 

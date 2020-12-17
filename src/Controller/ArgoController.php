@@ -55,12 +55,13 @@ class ArgoController extends ControllerBase {
   public function updatedContentEntities(Request $request) {
     $entityType = $request->get('type');
     $onlyPublished = $request->get('only-published') === '1';
+    $langcode = $request->get('langcode');
     $lastUpdate = intval($request->query->get('last-update'));
     $limit = intval($request->query->get('limit'));
     $offset = intval($request->query->get('offset'));
 
     try {
-      $updated = $this->argoService->getUpdated($entityType, $onlyPublished, $lastUpdate, $limit, $offset);
+      $updated = $this->argoService->getUpdated($entityType, $onlyPublished, $lastUpdate, $limit, $offset, $langcode);
     }
     catch (\Exception $e) {
       \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
