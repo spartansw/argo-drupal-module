@@ -308,6 +308,13 @@ class ArgoService implements ArgoServiceInterface {
     // EntityChangedTrait implies all editorial content entities have a "changed" field.
     $changedCol = 'changed';
 
+    // Allow null changed values if it's the first sync. This is useful for taxonomy terms lacking a
+    // changed value.
+    $showNullChangedRevisions = '';
+    if ($lastUpdate === 0) {
+      $showNullChangedRevisions = "OR revision.{$changedCol} IS NULL";
+    }
+
     // Handmade query due to Entity Storage API adding unnecessary and slow joins.
     // Get all entity revision IDs of a given type changed since last update.
     $results = $this->connection->query("
@@ -317,7 +324,8 @@ class ArgoService implements ArgoServiceInterface {
         FROM {$revisionTable} AS revision
           JOIN {$baseTable} AS base ON revision.{$idCol} = base.{$idCol}
         WHERE revision.{$langcodeCol} = :langcode
-          AND (revision.{$changedCol} > :last_update OR revision.{$changedCol} IS NULL)
+          AND (revision.{$changedCol} > :last_update 
+            {$showNullChangedRevisions})
           AND ((base.{$bundleCol} IN (:published_only_bundles[]) AND revision.{$publishedCol} = 1) OR 
             base.{$bundleCol} NOT IN (:published_only_bundles[]))
         GROUP BY revision.{$idCol}, revision.{$revisionIdCol}
