@@ -157,7 +157,12 @@ class ArgoService implements ArgoServiceInterface {
     // Copy src fields to target.
     $array = $entity->toArray();
     $target_entity->addTranslation($langcode, $array);
-    $translated = $this->contentEntityTranslate->translate($target_entity, $translation);
+    $translated = $this->contentEntityTranslate->translate($target_entity->getTranslation($langcode), $langcode, $translation);
+
+    // Handle paragraphs.
+    if (!empty($translation['children'])) {
+      $this->contentEntityTranslate->translateParagraphs($translated, $langcode, $translation['children']);
+    }
 
     if ($translated instanceof EntityPublishedInterface) {
       $translated->setUnpublished();

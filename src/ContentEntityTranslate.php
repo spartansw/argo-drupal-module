@@ -45,8 +45,10 @@ class ContentEntityTranslate {
   /**
    * Translate content entity.
    *
-   * @param \Drupal\Core\Entity\ContentEntityInterface $srcEntity
-   *   Source content entity.
+   * @param \Drupal\Core\Entity\ContentEntityInterface $targetEntity
+   *   Target content entity translation.
+   * @param string $targetLangcode
+   *   The target language to save the translation for.
    * @param array $translation
    *   Translations object.
    *
@@ -57,13 +59,7 @@ class ContentEntityTranslate {
    * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
-  public function translate(ContentEntityInterface $srcEntity, array $translation) {
-    $targetLangcode = $translation['targetLangcode'];
-    $targetEntity = $srcEntity->getTranslation($targetLangcode);
-
-    // Handle paragraphs.
-    $this->translateParagraphs($targetEntity, $translation);
-
+  public function translate(ContentEntityInterface $targetEntity, $targetLangcode, array $translation) {
     $metatags = [];
     foreach ($translation['items'] as $translatedProperty) {
       $path = $translatedProperty['path'];
@@ -102,14 +98,22 @@ class ContentEntityTranslate {
   }
 
   /**
+   * Translate paragraphs and their nested children.
+   *
    * @param \Drupal\Core\Entity\ContentEntityInterface $targetEntity
-   * @param array $translation
+   *   The host entity to attach the paragraph translations to.
+   * @param string $targetLangcode
+   *   The target language to save the translation for.
+   * @param array $translations
+   *   The list of paragraph translations.
    *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
+   * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
+   * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
-  private function translateParagraphs(ContentEntityInterface $targetEntity, array $translation) {
-    $targetLangcode = $translation['targetLangcode'];
+  public function translateParagraphs(ContentEntityInterface $targetEntity, $targetLangcode, array $translations) {
     $paragraph_storage = $this->entityTypeManager->getStorage('paragraph');
     /** @var \Drupal\field\FieldConfigInterface[] $field_definitions */
     $field_definitions = $this->entityTypeManager->getStorage('field_config')->loadByProperties([
@@ -118,10 +122,9 @@ class ContentEntityTranslate {
       'field_type' => 'entity_reference_revisions',
     ]);
 
-    foreach($field_definitions as $field_definition) {
+    foreach ($field_definitions as $field_definition) {
       // Only apply this logic to paragraph fields.
-      if ($field_definition->getFieldStorageDefinition()
-          ->getSetting('target_type') !== 'paragraph') {
+      if ($field_definition->getFieldStorageDefinition()->getSetting('target_type') !== 'paragraph') {
         continue;
       }
 
@@ -132,7 +135,7 @@ class ContentEntityTranslate {
           // - Look for the referenced entity on the field first.
           // - Then try and load it by its revision_id.
           // - Lastly load by it its entity id.
-          /** @var ParagraphInterface $paragraph */
+          /** @var \Drupal\paragraphs\ParagraphInterface $paragraph */
           $paragraph = $field->entity ?? NULL;
           if (!isset($paragraph)) {
             $value = $field->getValue();
@@ -147,20 +150,19 @@ class ContentEntityTranslate {
             continue;
           }
 
-          if (!empty($translation['nested_items'])) {
-            foreach ($translation['nested_items'] as $paragraph_translation) {
-              if ($paragraph->uuid() === $paragraph_translation['entityId']) {
-                if (!$paragraph->hasTranslation($targetLangcode)) {
-                  $array = $paragraph->toArray();
-                  $paragraph->addTranslation($targetLangcode, $array);
-                }
-                $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $paragraph_translation);
-                // @todo investigate converting paragraphs to asymmetrical here.
-                $paragraph->setNewRevision(TRUE);
-                $paragraph->setNeedsSave(TRUE);
-                $field->entity = $paragraph;
-                break;
+          foreach ($translations as $translation) {
+            if ($paragraph->uuid() === $translation['entityId']) {
+              if (!$paragraph->hasTranslation($targetLangcode)) {
+                $array = $paragraph->toArray();
+                $paragraph->addTranslation($targetLangcode, $array);
               }
+              $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $targetLangcode, $translation);
+              $this->translateParagraphs($paragraph, $targetLangcode, $translations);
+              // @todo investigate converting paragraphs to asymmetrical here.
+              $paragraph->setNewRevision(TRUE);
+              $paragraph->setNeedsSave(TRUE);
+              $field->entity = $paragraph;
+              break;
             }
           }
         }
