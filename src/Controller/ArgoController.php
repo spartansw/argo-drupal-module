@@ -4,7 +4,6 @@ namespace Drupal\argo\Controller;
 
 use Drupal\argo\ArgoServiceInterface;
 use Drupal\Core\Controller\ControllerBase;
-use Exception;
 use Psr\Log\LogLevel;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -55,12 +54,23 @@ class ArgoController extends ControllerBase {
    */
   public function updatedContentEntities(Request $request) {
     $entityType = $request->get('type');
+    $publishedOnlyBundles = $request->get('published-only-bundles');
+    $langcode = $request->get('langcode');
     $lastUpdate = intval($request->query->get('last-update'));
     $limit = intval($request->query->get('limit'));
     $offset = intval($request->query->get('offset'));
 
-    $updated = $this->argoService->getUpdated($entityType, $lastUpdate, $limit, $offset);
-
+    try {
+      $updated = $this->argoService->getUpdated($entityType, $lastUpdate, $limit, $offset,
+        $publishedOnlyBundles, $langcode);
+    }
+    catch (\Exception $e) {
+      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'message' => $e->__toString(),
+      ],
+        Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
     return new JsonResponse($updated);
   }
 
@@ -121,7 +131,7 @@ class ArgoController extends ControllerBase {
     try {
       $this->argoService->translate($entityType, $uuid, $translation);
     }
-    catch (Exception $e) {
+    catch (\Exception $e) {
       \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
@@ -165,7 +175,7 @@ class ArgoController extends ControllerBase {
       $deleted = json_decode($request->getContent(), TRUE)['deleted'];
       $this->argoService->resetDeletionLog($deleted);
     }
-    catch (Exception $e) {
+    catch (\Exception $e) {
       \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),

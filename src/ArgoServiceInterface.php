@@ -37,7 +37,12 @@ interface ArgoServiceInterface {
   /**
    * Get updated.
    */
-  public function getUpdated(string $entityType, int $lastUpdate, int $limit, int $offset);
+  public function getUpdated(string $entityType,
+                             int $lastUpdate,
+                             int $limit,
+                             int $offset,
+                             array $publishedOnlyBundles = NULL,
+                             string $langcode = NULL);
 
   /**
    * Get deletion log.

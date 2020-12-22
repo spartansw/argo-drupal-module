@@ -5,11 +5,14 @@ namespace Drupal\argo;
 use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
+use Drupal\Core\Entity\EditorialContentEntityBase;
+use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\RevisionableInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Language\Language;
 use Drupal\user\EntityOwnerInterface;
@@ -198,12 +201,13 @@ class ArgoService implements ArgoServiceInterface {
    * @param string $entityType
    *   Entity type ID.
    * @param string $uuid
-   *   Entity UUID
+   *   Entity UUID.
    * @param int|null $revisionId
    *   (optional) Entity revision ID.
    *
    * @return \Drupal\Core\Entity\ContentEntityInterface
    *   The loaded entity.
+   *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    * @throws \Drupal\Core\Entity\EntityStorageException
@@ -239,51 +243,112 @@ class ArgoService implements ArgoServiceInterface {
 
   /**
    * Get updated entities.
+   *
+   * @param string $entityType
+   *   Editorial content entity type ID.
+   * @param int $lastUpdate
+   *   UNIX timestamp of last update query.
+   * @param int $limit
+   *   Number of records to return.
+   * @param int $offset
+   *   Query offset.
+   * @param array $publishedOnlyBundles
+   *   Return only latest published revisions for specified bundle names.
+   *   Else return the latest revisions regardless of status.
+   * @param string $langcode
+   *   Langcode.
+   *
+   * @return array
+   *   Editorial content entities updated since $lastUpdate, or have no change timestamp.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   * @throws \Drupal\Core\Entity\EntityMalformedException
+   * @throws \Exception
+   *   If $entityType is not an editorial content entity.
    */
-  public function getUpdated(string $entityType, int $lastUpdate, int $limit, int $offset) {
+  public function getUpdated(string $entityType,
+                             int $lastUpdate,
+                             int $limit,
+                             int $offset,
+                             array $publishedOnlyBundles = NULL,
+                             string $langcode = NULL) {
+    $langcode = is_null($langcode) ? 'en-US' : $langcode;
+    $publishedOnlyBundles = is_null($publishedOnlyBundles) ? [''] : $publishedOnlyBundles;
+    $offset = is_null($offset) ? 0 : $offset;
+
+    /** @var \Drupal\Core\Entity\ContentEntityStorageInterface $entityStorage */
     $entityStorage = $this->entityTypeManager
       ->getStorage($entityType);
 
     /** @var \Drupal\Core\Entity\ContentEntityTypeInterface $contentEntityType */
     $contentEntityType = $this->entityTypeManager->getDefinition($entityType);
+
+    if (!$contentEntityType->entityClassImplements(EditorialContentEntityBase::class)) {
+      throw new \Exception("\"{$contentEntityType->id()}\" is not an editorial content entity type");
+    }
+
     $idKey = $contentEntityType->getKey('id');
+    $revisionIdKey = $contentEntityType->getKey('revision');
+    $publishedKey = $contentEntityType->getKey('published');
     $langcodeKey = $contentEntityType->getKey('langcode');
-    $revisionCreatedKey = $contentEntityType->getRevisionMetadataKey('revision_created');
+    $bundleCol = $contentEntityType->getKey('bundle');
 
-    $changedFieldName = array_keys($this->entityFieldManager->getFieldMapByFieldType('changed')[$entityType])[0];
-
+    /** @var \Drupal\Core\Entity\Sql\SqlContentEntityStorage $entityStorage */
+    $revisionTable = $entityStorage->getRevisionDataTable();
     $baseTable = $entityStorage->getBaseTable();
-    $dataTable = $entityStorage->getDataTable();
-    $revisionTable = $entityStorage->getRevisionTable();
 
     /** @var \Drupal\Core\Entity\Sql\TableMappingInterface $tableMapping */
     $tableMapping = $entityStorage->getTableMapping();
 
     $idCol = $this->getColumnName($tableMapping, $idKey);
+    $revisionIdCol = $this->getColumnName($tableMapping, $revisionIdKey);
+    $publishedCol = $this->getColumnName($tableMapping, $publishedKey);
     $langcodeCol = $this->getColumnName($tableMapping, $langcodeKey);
-    $changedCol = $this->getColumnName($tableMapping, $changedFieldName);
-    $revisionCol = $this->getColumnName($tableMapping, $revisionCreatedKey);
 
-    // Handmade query due to Entity Storage API adding unnecessary and slow joins.
-    // Get all entity IDs of a given type modified since last update.
-    $rawIds = $this->connection->query('
-    SELECT base.' . $idCol . '
-    FROM {' . $baseTable . '} AS base
-         LEFT JOIN {' . $dataTable . '} AS data ON data.' . $idCol . ' = base. ' . $idCol . '
-         LEFT JOIN {' . $revisionTable . '} revision ON revision. ' . $idCol . ' = base.' . $idCol . '
-    WHERE (data.' . $langcodeCol . '!= \'und\')
-      AND ((data.' . $changedCol . ' > :last_update) OR (revision.' . $revisionCol . ' > :last_update))
-    GROUP BY base.' . $idCol . ' ORDER BY base.' . $idCol . ' ASC;
-    ', ['last_update' => $lastUpdate])->fetchAll();
+    // EntityChangedTrait implies all editorial content entities have a "changed" field.
+    $changedCol = 'changed';
 
-    $ids = [];
-    foreach ($rawIds as $id) {
-      $ids[] = intval($id->$idKey);
+    // Allow null changed values if it's the first sync. This is useful for taxonomy terms lacking a
+    // changed value.
+    $showNullChangedRevisions = '';
+    if ($lastUpdate === 0) {
+      $showNullChangedRevisions = "OR revision.{$changedCol} IS NULL";
     }
 
-    $count = count($ids);
+    // Handmade query due to Entity Storage API adding unnecessary and slow joins.
+    // Get all entity revision IDs of a given type changed since last update.
+    $results = $this->connection->query("
+    WITH ranked_revision AS (
+        SELECT revision.{$revisionIdCol},
+               ROW_NUMBER() OVER (PARTITION BY revision.{$idCol} ORDER BY revision.{$changedCol} DESC) AS rn
+        FROM {$revisionTable} AS revision
+          JOIN {$baseTable} AS base ON revision.{$idCol} = base.{$idCol}
+        WHERE revision.{$langcodeCol} = :langcode
+          AND (revision.{$changedCol} > :last_update 
+            {$showNullChangedRevisions})
+          AND ((base.{$bundleCol} IN (:published_only_bundles[]) AND revision.{$publishedCol} = 1) OR 
+            base.{$bundleCol} NOT IN (:published_only_bundles[]))
+        GROUP BY revision.{$idCol}, revision.{$revisionIdCol}
+    )
+    SELECT {$revisionIdCol}
+    FROM ranked_revision
+    WHERE rn = 1
+    ORDER BY {$revisionIdCol}; 
+    ", [
+      ':last_update' => $lastUpdate,
+      ':langcode' => $langcode,
+      ':published_only_bundles[]' => $publishedOnlyBundles
+    ])->fetchAll();
 
-    $ids = array_slice($ids, $offset, $limit);
+    $revisionIds = [];
+    foreach ($results as $result) {
+      $revisionIds[] = intval($result->$revisionIdKey);
+    }
+
+    $count = count($revisionIds);
+
+    $revisionIds = array_slice($revisionIds, $offset, $limit);
 
     $nextOffset = $offset + $limit;
     $hasNext = $nextOffset < $count;
@@ -295,13 +360,10 @@ class ArgoService implements ArgoServiceInterface {
     }
 
     $updated['data'] = [];
-    $entities = $entityStorage->loadMultiple($ids);
+    $entities = $entityStorage->loadMultipleRevisions($revisionIds);
     /** @var \Drupal\Core\Entity\EditorialContentEntityBase $entity */
     foreach ($entities as $entity) {
-      $changedTime = intval($entity->get($changedFieldName)->value);
-      if ($changedTime === 0) {
-        $changedTime = intval($entity->getRevisionCreationTime());
-      }
+      $changedTime = intval($entity->getChangedTime());
       $updated['data'][] = [
         'typeId' => $entity->getEntityTypeId(),
         'bundle' => $entity->bundle(),
@@ -310,7 +372,8 @@ class ArgoService implements ArgoServiceInterface {
         'uuid' => $entity->uuid(),
         'path' => $entity->toUrl()->toString(),
         'langcode' => $entity->language()->getId(),
-        'changed' => $changedTime
+        'changed' => $changedTime,
+        'published' => $entity->isPublished()
       ];
     }
 

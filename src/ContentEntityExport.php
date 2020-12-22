@@ -267,6 +267,8 @@ class ContentEntityExport {
   }
 
   /**
+   * Gets revision ID.
+   *
    * @return mixed|null
    *   Revision ID if entity has one, else NULL.
    */
@@ -277,4 +279,5 @@ class ContentEntityExport {
     }
     return $revisionId;
   }
+
 }
