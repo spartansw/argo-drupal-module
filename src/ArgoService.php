@@ -137,7 +137,7 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
   public function translate(string $entityType, string $uuid, array $translation) {
-    $revisionId = $translation['revisionId'] ?? NULL;
+    $revisionId = $translation['root']['revisionId'] ?? NULL;
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     $translated = $this->contentEntityTranslate->translate($entity, $translation);
 
@@ -318,22 +318,17 @@ class ArgoService implements ArgoServiceInterface {
     // Handmade query due to Entity Storage API adding unnecessary and slow joins.
     // Get all entity revision IDs of a given type changed since last update.
     $results = $this->connection->query("
-    WITH ranked_revision AS (
-        SELECT revision.{$revisionIdCol},
-               ROW_NUMBER() OVER (PARTITION BY revision.{$idCol} ORDER BY revision.{$changedCol} DESC) AS rn
-        FROM {$revisionTable} AS revision
-          JOIN {$baseTable} AS base ON revision.{$idCol} = base.{$idCol}
-        WHERE revision.{$langcodeCol} = :langcode
-          AND (revision.{$changedCol} > :last_update 
-            {$showNullChangedRevisions})
-          AND ((base.{$bundleCol} IN (:published_only_bundles[]) AND revision.{$publishedCol} = 1) OR 
-            base.{$bundleCol} NOT IN (:published_only_bundles[]))
-        GROUP BY revision.{$idCol}, revision.{$revisionIdCol}
-    )
-    SELECT {$revisionIdCol}
-    FROM ranked_revision
-    WHERE rn = 1
-    ORDER BY {$revisionIdCol}; 
+    SELECT MAX(revision.{$revisionIdCol}) AS {$revisionIdCol}
+    FROM {$revisionTable} AS revision
+             JOIN {$baseTable} AS base ON base.{$idCol} = revision.{$idCol}
+    WHERE revision.{$langcodeCol} = :langcode
+        AND (revision.{$changedCol} > :last_update
+              {$showNullChangedRevisions})
+        AND ((base.{$bundleCol} IN (:published_only_bundles[]) AND
+              revision.{$publishedCol} = 1) OR
+              base.{$bundleCol} NOT IN (:published_only_bundles[]))
+    GROUP BY revision.{$idCol}
+    ORDER BY revision.{$changedCol} DESC, revision.{$revisionIdCol} DESC;
     ", [
       ':last_update' => $lastUpdate,
       ':langcode' => $langcode,
