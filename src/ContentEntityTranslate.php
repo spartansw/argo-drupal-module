@@ -152,10 +152,15 @@ class ContentEntityTranslate {
 
           foreach ($translations as $translation) {
             if ($paragraph->uuid() === $translation['entityId']) {
-              if (!$paragraph->hasTranslation($targetLangcode)) {
-                $array = $paragraph->toArray();
-                $paragraph->addTranslation($targetLangcode, $array);
+              if ($paragraph->hasTranslation($targetLangcode)) {
+                // Must remove existing translation because it might not have
+                // all fields.
+                $paragraph->removeTranslation($targetLangcode);
               }
+
+              // Copy src fields to target.
+              $array = $paragraph->toArray();
+              $paragraph->addTranslation($targetLangcode, $array);
               $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $targetLangcode, $translation);
               $this->translateParagraphs($paragraph, $targetLangcode, $translations);
               // @todo investigate converting paragraphs to asymmetrical here.
