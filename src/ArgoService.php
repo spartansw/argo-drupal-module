@@ -137,7 +137,7 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
   public function translate(string $entityType, string $uuid, array $translation) {
-    $revisionId = $translation['root']['revisionId'] ?? NULL;
+    $revisionId = $translation['revisionId'] ?? NULL;
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     $translated = $this->contentEntityTranslate->translate($entity, $translation);
 
