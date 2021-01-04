@@ -163,7 +163,6 @@ class ContentEntityTranslate {
               $paragraph->addTranslation($targetLangcode, $array);
               $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $targetLangcode, $translation);
               $this->translateParagraphs($paragraph, $targetLangcode, $translations);
-              // @todo investigate converting paragraphs to asymmetrical here.
               $paragraph->setNewRevision(TRUE);
               $paragraph->setNeedsSave(TRUE);
               $field->entity = $paragraph;
