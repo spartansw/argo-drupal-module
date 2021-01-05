@@ -11,6 +11,7 @@ use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\RevisionLogInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Language\Language;
 use Drupal\user\EntityOwnerInterface;
@@ -185,9 +186,16 @@ class ArgoService implements ArgoServiceInterface {
       $translated->set('moderation_state', $stateId);
     }
 
+    // Update the revision details.
+    $current_user = \Drupal::currentUser();
+    if ($translated instanceof RevisionLogInterface) {
+      $translated->setRevisionCreationTime(\Drupal::time()->getRequestTime());
+      $translated->setRevisionLogMessage('Translation imported from Argo.');
+      $translated->setRevisionUserId($current_user->id());
+    }
+
     // Update the author to reflect the Argo service account.
     if ($translated instanceof EntityOwnerInterface) {
-      $current_user = \Drupal::currentUser();
       $translated->setOwnerId($current_user->id());
     }
     $translated->save();
