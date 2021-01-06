@@ -198,6 +198,12 @@ class ArgoService implements ArgoServiceInterface {
     if ($translated instanceof EntityOwnerInterface) {
       $translated->setOwnerId($current_user->id());
     }
+
+    // The source node should not be marked as revision translation affected,
+    // we enforce that here.
+    $target_entity->setRevisionTranslationAffected(FALSE);
+    $target_entity->setRevisionTranslationAffectedEnforced(TRUE);
+
     $translated->save();
   }
 
