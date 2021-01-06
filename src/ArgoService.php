@@ -146,8 +146,8 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
   public function translate(string $entityType, string $uuid, array $translation) {
-    $langcode = $translation['targetLangcode'];
-    $revisionId = $translation['revisionId'] ?? NULL;
+    $langcode = $translation['root']['targetLangcode'];
+    $revisionId = $translation['root']['revisionId'] ?? NULL;
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     $target_entity = $this->loadEntity($entityType, $uuid);
 
@@ -159,7 +159,7 @@ class ArgoService implements ArgoServiceInterface {
     // Copy src fields to target.
     $array = $entity->toArray();
     $target_entity->addTranslation($langcode, $array);
-    $translated = $this->contentEntityTranslate->translate($target_entity->getTranslation($langcode), $langcode, $translation);
+    $translated = $this->contentEntityTranslate->translate($target_entity->getTranslation($langcode), $langcode, $translation['root']);
 
     // Handle paragraphs.
     if (!empty($translation['children'])) {
@@ -169,19 +169,19 @@ class ArgoService implements ArgoServiceInterface {
     if ($translated instanceof EntityPublishedInterface) {
       $translated->setUnpublished();
     }
-    if (isset($translation['stateId'])) {
-      if ($translation['stateId'] === 'published') {
+    if (isset($translation['root']['stateId'])) {
+      if ($translation['root']['stateId'] === 'published') {
         $translated->setPublished();
       }
     }
     if ($this->moderationInfo->isModeratedEntity($translated)) {
-      if (!isset($translation['stateId']) || strlen($translation['stateId']) < 1) {
+      if (!isset($translation['root']['stateId']) || strlen($translation['root']['stateId']) < 1) {
         /** @var \Drupal\content_moderation\Plugin\WorkflowType\ContentModerationInterface $contentModeration */
         $contentModeration = $this->moderationInfo->getWorkflowForEntity($translated)->getTypePlugin();
         $stateId = $contentModeration->getInitialState($translated)->id();
       }
       else {
-        $stateId = $translation['stateId'];
+        $stateId = $translation['root']['stateId'];
       }
       $translated->set('moderation_state', $stateId);
     }
