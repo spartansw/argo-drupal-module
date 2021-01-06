@@ -106,14 +106,14 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $node->save();
 
     $export = $this->contentEntityExport->export($node);
-    $export['items'][1]['value'] = $expectedTranslation;
+    $export['root']['items'][1]['value'] = $expectedTranslation;
 
     $this->assertEqual($export['items'][2]['path'], 'field_meta_tags.0.value.key1');
-    $export['items'][2]['value'] = $expectedTranslation;
-    $export['items'][3]['value'] = $expectedTranslation;
+    $export['root']['items'][2]['value'] = $expectedTranslation;
+    $export['root']['items'][3]['value'] = $expectedTranslation;
 
     $targetLangcode = $this->german->id();
-    $export['targetLangcode'] = $targetLangcode;
+    $export['root']['targetLangcode'] = $targetLangcode;
 
     $this->contentEntityTranslate->translate($node, $export);
 
@@ -157,11 +157,11 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $export = $this->contentEntityExport->export($node);
 
     $targetLangcode = $this->german->id();
-    $export['targetLangcode'] = $targetLangcode;
+    $export['root']['targetLangcode'] = $targetLangcode;
 
-    $export['items'][1]['value'] = 'testUriX';
-    $export['items'][2]['value'] = 'testTitleX';
-    $export['items'][3]['value'] = 'nestedValueX';
+    $export['root']['items'][1]['value'] = 'testUriX';
+    $export['root']['items'][2]['value'] = 'testTitleX';
+    $export['root']['items'][3]['value'] = 'nestedValueX';
 
     $this->contentEntityTranslate->translate($node, $export);
 
@@ -224,12 +224,12 @@ class ContentEntityTranslateTest extends KernelTestBase {
 
       $export = $this->contentEntityExport->export($node);
 
-      if (isset($export['items'][1])) {
-        $this->assertEqual($export['items'][1]['value'], 'test value');
+      if (isset($export['root']['items'][1])) {
+        $this->assertEqual($export['root']['items'][1]['value'], 'test value');
       }
 
       $targetLangcode = $this->german->id();
-      $export['targetLangcode'] = $targetLangcode;
+      $export['root']['targetLangcode'] = $targetLangcode;
 
       $this->contentEntityTranslate->translate($node, $export);
 
@@ -237,7 +237,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
       $updatedSrcNode = \Drupal::entityTypeManager()->getStorage('node')
         ->load($node->id());
       $export2 = $this->contentEntityExport->export($updatedSrcNode);
-      $export2['targetLangcode'] = $targetLangcode;
+      $export2['root']['targetLangcode'] = $targetLangcode;
 
       $this->contentEntityTranslate->translate($updatedSrcNode, $export2);
     }
