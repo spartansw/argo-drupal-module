@@ -22,12 +22,14 @@ class ContentEntityExportTest extends KernelTestBase {
   public static $modules = [
     'typed_data',
     'argo',
+    'content_moderation',
     'node',
     'user',
     'field',
     'system',
     'entity_reference_revisions',
     'paragraphs',
+    'workflows',
   ];
 
   /**
@@ -86,7 +88,7 @@ class ContentEntityExportTest extends KernelTestBase {
 
     $actualResult = $this->contentEntityExport->export($node);
 
-    $items = $actualResult['root']['items'];
+    $items = $actualResult['items'];
     $this->assertEqual($items[0]['value'], $expectedTitle);
     $this->assertEqual($items[1]['value'], $expectedString);
   }
@@ -172,7 +174,7 @@ class ContentEntityExportTest extends KernelTestBase {
 
     $actualResult = $this->contentEntityExport->export($node);
 
-    $references = $actualResult['root']['references'];
+    $references = $actualResult['references'];
     $this->assertEqual(count($references), 1);
     $reference = $references[0];
     $this->assertEqual($reference['entityType'], 'paragraph');

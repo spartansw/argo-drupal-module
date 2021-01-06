@@ -21,6 +21,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
    */
   public static $modules = [
     'argo',
+    'content_moderation',
     'node',
     'user',
     'field',
@@ -30,7 +31,6 @@ class ContentEntityTranslateTest extends KernelTestBase {
     'token',
     'metatag',
     'link',
-    'content_moderation',
     'workflows',
   ];
 
@@ -115,7 +115,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $targetLangcode = $this->german->id();
     $export['root']['targetLangcode'] = $targetLangcode;
 
-    $this->contentEntityTranslate->translate($node, $export);
+    $this->contentEntityTranslate->translate($node, $targetLangcode, $export);
 
     /* @var \Drupal\node\NodeInterface $updatedSrcNode . */
     $updatedSrcNode = \Drupal::entityTypeManager()->getStorage('node')
@@ -129,7 +129,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $this->assertEqual($translatedMetatag['key1'], $expectedTranslation);
     $this->assertEqual($translatedMetatag['key2'], $expectedTranslation);
 
-    $this->contentEntityTranslate->translate($node, $export);
+    $this->contentEntityTranslate->translate($node, $targetLangcode, $export);
 
     $this->assertEqual();
   }
@@ -163,7 +163,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $export['root']['items'][2]['value'] = 'testTitleX';
     $export['root']['items'][3]['value'] = 'nestedValueX';
 
-    $this->contentEntityTranslate->translate($node, $export);
+    $this->contentEntityTranslate->translate($node, $targetLangcode, $export);
 
     /* @var \Drupal\node\NodeInterface $updatedSrcNode . */
     $updatedSrcNode = \Drupal::entityTypeManager()->getStorage('node')
@@ -231,7 +231,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
       $targetLangcode = $this->german->id();
       $export['root']['targetLangcode'] = $targetLangcode;
 
-      $this->contentEntityTranslate->translate($node, $export);
+      $this->contentEntityTranslate->translate($node, $targetLangcode, $export);
 
       /* @var \Drupal\node\NodeInterface $updatedSrcNode . */
       $updatedSrcNode = \Drupal::entityTypeManager()->getStorage('node')
@@ -239,7 +239,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
       $export2 = $this->contentEntityExport->export($updatedSrcNode);
       $export2['root']['targetLangcode'] = $targetLangcode;
 
-      $this->contentEntityTranslate->translate($updatedSrcNode, $export2);
+      $this->contentEntityTranslate->translate($updatedSrcNode, $targetLangcode, $export2);
     }
   }
 
