@@ -4,7 +4,7 @@ namespace Drupal\argo;
 
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\paragraphs\ParagraphInterface;
+use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\typed_data\DataFetcherInterface;
 
 /**
@@ -114,60 +114,23 @@ class ContentEntityTranslate {
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
   public function translateParagraphs(ContentEntityInterface $targetEntity, $targetLangcode, array $translations) {
-    $paragraph_storage = $this->entityTypeManager->getStorage('paragraph');
-    /** @var \Drupal\field\FieldConfigInterface[] $field_definitions */
-    $field_definitions = $this->entityTypeManager->getStorage('field_config')->loadByProperties([
-      'entity_type' => $targetEntity->getEntityTypeId(),
-      'bundle' => $targetEntity->bundle(),
-      'field_type' => 'entity_reference_revisions',
-    ]);
-
-    foreach ($field_definitions as $field_definition) {
-      // Only apply this logic to paragraph fields.
-      if ($field_definition->getFieldStorageDefinition()->getSetting('target_type') !== 'paragraph') {
-        continue;
-      }
-
-      $field_name = $field_definition->getName();
-      if (!$targetEntity->get($field_name)->isEmpty()) {
-        foreach ($targetEntity->get($field_name) as $field) {
-          // Try and load the paragraph entity.
-          // - Look for the referenced entity on the field first.
-          // - Then try and load it by its revision_id.
-          // - Lastly load by it its entity id.
-          /** @var \Drupal\paragraphs\ParagraphInterface $paragraph */
-          $paragraph = $field->entity ?? NULL;
-          if (!isset($paragraph)) {
-            $value = $field->getValue();
-            if (isset($value['target_revision_id'])) {
-              $paragraph = $paragraph_storage->loadRevision($value['target_revision_id']);
-            }
-            elseif (isset($value['target_id'])) {
-              $paragraph = $paragraph_storage->load($value['target_id']);
-            }
-          }
-          if (!$paragraph instanceof ParagraphInterface) {
-            continue;
-          }
-
-          foreach ($translations as $translation) {
-            if ($paragraph->uuid() === $translation['entityId']) {
-              if ($paragraph->hasTranslation($targetLangcode)) {
-                // Must remove existing translation because it might not have
-                // all fields.
-                $paragraph->removeTranslation($targetLangcode);
+    foreach ($targetEntity->getFields() as $fieldItemList) {
+      if ($fieldItemList instanceof EntityReferenceFieldItemListInterface && $fieldItemList->getSetting('target_type') ==='paragraph') {
+        foreach ($fieldItemList as $delta => $item) {
+          if ($item->entity) {
+            $paragraph = $item->entity;
+            foreach ($translations as $translation) {
+              $uuid = !empty($paragraph->duplicateSource) ? $paragraph->duplicateSource->uuid() : $paragraph->uuid();
+              if ($uuid === $translation['entityId']) {
+                $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $targetLangcode, $translation);
+                $this->translateParagraphs($paragraph, $targetLangcode, $translations);
+                $paragraph->setNewRevision(TRUE);
+                $paragraph->setNeedsSave(TRUE);
+                break;
               }
-
-              // Copy src fields to target.
-              $array = $paragraph->toArray();
-              $paragraph->addTranslation($targetLangcode, $array);
-              $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $targetLangcode, $translation);
-              $this->translateParagraphs($paragraph, $targetLangcode, $translations);
-              $paragraph->setNewRevision(TRUE);
-              $paragraph->setNeedsSave(TRUE);
-              $field->entity = $paragraph;
-              break;
             }
+
+            $fieldItemList[$delta] = $paragraph;
           }
         }
       }
