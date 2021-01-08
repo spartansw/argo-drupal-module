@@ -199,10 +199,18 @@ class ArgoService implements ArgoServiceInterface {
       $translated->setOwnerId($current_user->id());
     }
 
-    // The source node should not be marked as revision translation affected,
-    // we enforce that here.
-    $target_entity->setRevisionTranslationAffected(FALSE);
-    $target_entity->setRevisionTranslationAffectedEnforced(TRUE);
+    // Only the active translation should be marked as revision translation
+    // affected - all other translations should be excluded.
+    foreach ($target_entity->getTranslationLanguages() as $langcode => $language) {
+      $translation = $target_entity->getTranslation($langcode);
+      if ($langcode == $translated->language()->getId()) {
+        $translation->setRevisionTranslationAffected(TRUE);
+        $translation->setRevisionTranslationAffectedEnforced(TRUE);
+      } else {
+        $translation->setRevisionTranslationAffected(FALSE);
+        $translation->setRevisionTranslationAffectedEnforced(TRUE);
+      }
+    }
 
     $translated->save();
   }
