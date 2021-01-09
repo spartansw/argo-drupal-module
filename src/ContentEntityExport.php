@@ -118,6 +118,9 @@ class ContentEntityExport {
                           ];
                         }
                         continue;
+                      } else {
+                        // Empty array as value. Skip.
+                        continue;
                       }
                     }
                     else {
