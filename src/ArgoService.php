@@ -199,6 +199,11 @@ class ArgoService implements ArgoServiceInterface {
       $translated->setOwnerId($current_user->id());
     }
 
+    // The new translation should be marked as revision translation affected,
+    // we enforce that here.
+    $translated->setRevisionTranslationAffected(TRUE);
+    $translated->setRevisionTranslationAffectedEnforced(TRUE);
+
     $translated->save();
   }
 
