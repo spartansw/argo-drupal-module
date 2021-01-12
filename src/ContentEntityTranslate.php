@@ -115,7 +115,7 @@ class ContentEntityTranslate {
    */
   public function translateParagraphs(ContentEntityInterface $targetEntity, $targetLangcode, array $translations) {
     foreach ($targetEntity->getFields() as $fieldItemList) {
-      if ($fieldItemList instanceof EntityReferenceFieldItemListInterface && $fieldItemList->getSetting('target_type') ==='paragraph') {
+      if ($fieldItemList instanceof EntityReferenceFieldItemListInterface && $fieldItemList->getSetting('target_type') === 'paragraph') {
         foreach ($fieldItemList as $delta => $item) {
           if ($item->entity) {
             $paragraph = $item->entity;
