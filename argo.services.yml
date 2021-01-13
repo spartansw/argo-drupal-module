@@ -1,7 +1,8 @@
 services:
   argo.service:
     class: Drupal\argo\ArgoService
-    arguments: ['@entity_type.manager',
+    arguments: ['@entity.repository',
+                '@entity_type.manager',
                 '@entity_field.manager',
                 '@argo.export',
                 '@argo.translate',
@@ -11,4 +12,5 @@ services:
     class: Drupal\argo\ContentEntityExport
   argo.translate:
     class: Drupal\argo\ContentEntityTranslate
-    arguments: ['@typed_data.data_fetcher']
+    arguments: ['@typed_data.data_fetcher',
+                '@entity_type.manager']

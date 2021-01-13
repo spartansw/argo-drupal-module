@@ -22,12 +22,14 @@ class ContentEntityExportTest extends KernelTestBase {
   public static $modules = [
     'typed_data',
     'argo',
+    'content_moderation',
     'node',
     'user',
     'field',
     'system',
     'entity_reference_revisions',
     'paragraphs',
+    'workflows',
   ];
 
   /**

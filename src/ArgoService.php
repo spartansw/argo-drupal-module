@@ -6,22 +6,27 @@ use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
 use Drupal\Core\Entity\EditorialContentEntityBase;
-use Drupal\Core\Entity\EntityChangedInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
+use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Entity\RevisionableInterface;
+use Drupal\Core\Entity\RevisionLogInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Language\Language;
-use Drupal\Core\TypedData\Exception\MissingDataException;
-use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
 
 /**
  * Interacts with Argo.
  */
 class ArgoService implements ArgoServiceInterface {
+
+  /**
+   * The core entity repository service.
+   *
+   * @var \Drupal\Core\Entity\EntityRepositoryInterface
+   */
+  private $entityRepository;
 
   /**
    * The core entity type manager service.
@@ -68,6 +73,8 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * The service constructor.
    *
+   * @param \Drupal\Core\Entity\EntityRepositoryInterface $entityRepository
+   *   The core entity repository service.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   The core entity type manager service.
    * @param \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager
@@ -82,6 +89,7 @@ class ArgoService implements ArgoServiceInterface {
    *   DB connection.
    */
   public function __construct(
+    EntityRepositoryInterface $entityRepository,
     EntityTypeManagerInterface $entityTypeManager,
     EntityFieldManagerInterface $entityFieldManager,
     ContentEntityExport $contentEntityExport,
@@ -89,6 +97,7 @@ class ArgoService implements ArgoServiceInterface {
     ModerationInformationInterface $moderationInfo,
     Connection $connection
   ) {
+    $this->entityRepository = $entityRepository;
     $this->entityTypeManager = $entityTypeManager;
     $this->entityFieldManager = $entityFieldManager;
     $this->contentEntityExport = $contentEntityExport;
@@ -137,42 +146,64 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
   public function translate(string $entityType, string $uuid, array $translation) {
-    $revisionId = $translation['revisionId'] ?? NULL;
+    $langcode = $translation['root']['targetLangcode'];
+    $revisionId = $translation['root']['revisionId'] ?? NULL;
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
-    $translated = $this->contentEntityTranslate->translate($entity, $translation);
+    $target_entity = $this->loadEntity($entityType, $uuid);
 
-    // Paragraphs are never displayed on their own, and so we should not apply
-    // moderation states to these entities.
-    if ($translated instanceof EntityPublishedInterface && !($translated instanceof ParagraphInterface)) {
+    if ($target_entity->hasTranslation($langcode)) {
+      // Must remove existing translation because it might not have all fields.
+      $target_entity->removeTranslation($langcode);
+    }
+
+    // Copy src fields to target.
+    $array = $entity->toArray();
+    $target_entity->addTranslation($langcode, $array);
+    $translated = $this->contentEntityTranslate->translate($target_entity->getTranslation($langcode), $langcode, $translation['root']);
+
+    // Handle paragraphs.
+    if (!empty($translation['children'])) {
+      $this->contentEntityTranslate->translateParagraphs($translated, $langcode, $translation['children']);
+    }
+
+    if ($translated instanceof EntityPublishedInterface) {
       $translated->setUnpublished();
     }
-    if (isset($translation['stateId'])) {
-      if ($translation['stateId'] === 'published') {
+    if (isset($translation['root']['stateId'])) {
+      if ($translation['root']['stateId'] === 'published') {
         $translated->setPublished();
       }
     }
     if ($this->moderationInfo->isModeratedEntity($translated)) {
-      if (!isset($translation['stateId']) || strlen($translation['stateId']) < 1) {
+      if (!isset($translation['root']['stateId']) || strlen($translation['root']['stateId']) < 1) {
         /** @var \Drupal\content_moderation\Plugin\WorkflowType\ContentModerationInterface $contentModeration */
         $contentModeration = $this->moderationInfo->getWorkflowForEntity($translated)->getTypePlugin();
         $stateId = $contentModeration->getInitialState($translated)->id();
       }
       else {
-        $stateId = $translation['stateId'];
+        $stateId = $translation['root']['stateId'];
       }
       $translated->set('moderation_state', $stateId);
     }
 
-    // Update changed time of the entity so we are not saving new revisions with
-    // timestamps in the past.
-    if ($translated instanceof EntityChangedInterface) {
-      $translated->setChangedTime(time());
+    // Update the revision details.
+    $current_user = \Drupal::currentUser();
+    if ($translated instanceof RevisionLogInterface) {
+      $translated->setRevisionCreationTime(\Drupal::time()->getRequestTime());
+      $translated->setRevisionLogMessage('Translation imported from Argo.');
+      $translated->setRevisionUserId($current_user->id());
     }
-    // Also update the author to reflect the Argo service account.
+
+    // Update the author to reflect the Argo service account.
     if ($translated instanceof EntityOwnerInterface) {
-      $current_user = \Drupal::currentUser();
       $translated->setOwnerId($current_user->id());
     }
+
+    // The new translation should be marked as revision translation affected,
+    // we enforce that here.
+    $translated->setRevisionTranslationAffected(TRUE);
+    $translated->setRevisionTranslationAffectedEnforced(TRUE);
+
     $translated->save();
   }
 
@@ -191,7 +222,7 @@ class ArgoService implements ArgoServiceInterface {
    *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
+   * @throws \Drupal\Core\Entity\EntityStorageException
    */
   private function loadEntity(string $entityType, string $uuid, int $revisionId = NULL) {
     // Unfortunately loading an entity by its uuid will only load the latest
@@ -204,30 +235,12 @@ class ArgoService implements ArgoServiceInterface {
       $entity = $this->entityTypeManager
         ->getStorage($entityType)
         ->loadRevision($revisionId);
-    }
-    else {
+    } else {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
-      $loadResult = $this->entityTypeManager
-        ->getStorage($entityType)
-        ->loadByProperties(['uuid' => $uuid]);
-      if (empty($loadResult)) {
-        throw new MissingDataException();
-      }
-      /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
-      $entity = $loadResult[array_keys($loadResult)[0]];
-      // If there's no provided vid but the entity is revisionable,
-      // get the latest vid and fetch the latest revision.
-      if ($entity instanceof RevisionableInterface) {
-        /** @var \Drupal\Core\Entity\RevisionableStorageInterface $storage */
-        $storage = $this->entityTypeManager
-          ->getStorage($entityType);
-        $vid = $storage->getLatestRevisionId($entity->id());
-        $entity = $storage->loadRevision($vid);
-        if (is_null($entity)) {
-          throw new MissingDataException();
-        }
-      }
+      $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);
+      // Find the latest translation affected entity (e.g. draft revision).
+      $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
     }
 
     return $entity;
