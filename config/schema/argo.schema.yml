@@ -1,0 +1,7 @@
+field.field.*.*.*.third_party.argo:
+  type: mapping
+  label: 'Argo translation field settings'
+  mapping:
+    excluded:
+      type: boolean
+      label: Excluded

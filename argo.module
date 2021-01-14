@@ -8,6 +8,8 @@
 use Drupal\Core\Database\Database;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\field\FieldConfigInterface;
 use Psr\Log\LogLevel;
 
 /**
@@ -37,4 +39,46 @@ function argo_entity_delete(EntityInterface $entity) {
       \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
     }
   }
+}
+
+/**
+ * Implements hook_FORM_ID_alter().
+ *
+ * Exposes new field configuration to exclude field from being exported and
+ * translated by Argo. Its value can still be translated manually - changed
+ * per language. This is useful for certain string values such as display
+ * settings where the value itself should not be translated as it is used to
+ * control how content is rendered (e.g. css classes, event date/time timezone
+ * settings etc...).
+ */
+function argo_form_field_config_edit_form_alter(&$form, FormStateInterface $form_state) {
+  /** @var \Drupal\field\Entity\FieldConfig $field_config */
+  $field_config = $form_state->getFormObject()->getEntity();
+  $bundle_is_translatable = \Drupal::service('content_translation.manager')
+    ->isEnabled($field_config->getTargetEntityTypeId(), $field_config->getTargetBundle());
+
+  $form['argo_excluded'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Exclude from Argo translations'),
+    '#weight' => 0,
+    '#default_value' => $field_config->getThirdPartySetting('argo', 'excluded', 0),
+    '#description' => t('This field will no longer be exported and translated by Argo, but can still be translated manually.'),
+    '#states' => [
+      'visible' => [
+        ':input[name="translatable"]' => ['checked' => TRUE],
+      ],
+    ],
+    '#access' => $bundle_is_translatable,
+  );
+
+  $form['#entity_builders'][] = 'argo_entity_builder';
+}
+
+
+/**
+ * Entity builder callback.
+ */
+function argo_entity_builder($entity_type, FieldConfigInterface $entity, &$form, FormStateInterface $form_state) {
+  $exclude_from_translation = $form_state->getValue('argo_excluded');
+  $entity->setThirdPartySetting('argo', 'excluded', $exclude_from_translation);
 }
