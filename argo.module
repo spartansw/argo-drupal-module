@@ -19,7 +19,8 @@ use Psr\Log\LogLevel;
  * Since deleted tracked entities won't show up in that query, we need to
  * log these deletions and clean up after they're accounted for.
  * Without this deletion log, we would have to check all entities and subtract
- * the ones not present after the last sync. The deletion log is a more efficient alternative.
+ * the ones not present after the last sync. The deletion log is a more efficient
+ * alternative.
  *
  * @param Drupal\Core\Entity\EntityInterface $entity
  *   Entity about to be deleted.
@@ -33,7 +34,9 @@ function argo_entity_delete(EntityInterface $entity) {
           'entityType' => $entity->getEntityTypeId(),
           'bundle' => $entity->bundle(),
           'uuid' => $entity->uuid(),
-        ])->execute();
+        ])
+        ->key('uuid')
+        ->execute();
     }
     catch (Exception $e) {
       \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
