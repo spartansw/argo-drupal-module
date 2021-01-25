@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\Core\Config\Entity\ThirdPartySettingsInterface;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\RevisionableInterface;
@@ -35,6 +36,14 @@ class ContentEntityExport {
       if ($fieldItemDef instanceof FieldDefinitionInterface) {
         if ($fieldItemDef->getType() === 'language') {
           unset($translatableFields[$name]);
+        }
+
+        // User marked the field to be excluded.
+        if ($fieldItemDef instanceof ThirdPartySettingsInterface) {
+          $is_excluded = $fieldItemDef->getThirdPartySetting('argo', 'excluded', FALSE);
+          if ($is_excluded) {
+            unset($translatableFields[$name]);
+          }
         }
       }
     }
