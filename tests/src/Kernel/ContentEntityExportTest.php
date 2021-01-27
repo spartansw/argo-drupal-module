@@ -86,7 +86,7 @@ class ContentEntityExportTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $actualResult = $this->contentEntityExport->export($node);
+    $actualResult = $this->contentEntityExport->export($node, $traversableEntityTypes, $traversableContentTypes);
 
     $items = $actualResult['items'];
     $this->assertEqual($items[0]['value'], $expectedTitle);
@@ -172,7 +172,7 @@ class ContentEntityExportTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $actualResult = $this->contentEntityExport->export($node);
+    $actualResult = $this->contentEntityExport->export($node, $traversableEntityTypes, $traversableContentTypes);
 
     $references = $actualResult['references'];
     $this->assertEqual(count($references), 1);

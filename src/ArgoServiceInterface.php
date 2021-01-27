@@ -14,13 +14,17 @@ interface ArgoServiceInterface {
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
+   * @param array $traversableEntityTypes
+   *   Traversable entity types.
+   * @param array $traversableContentTypes
+   *   Traversable content types.
    * @param int $revisionId
    *   Entity revision ID.
    *
    * @return mixed
    *   Export object.
    */
-  public function export(string $entityType, string $uuid, int $revisionId = NULL);
+  public function export(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL);
 
   /**
    * Translate.

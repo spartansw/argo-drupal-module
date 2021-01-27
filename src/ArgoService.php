@@ -113,7 +113,11 @@ class ArgoService implements ArgoServiceInterface {
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
-   * @param int $revisionId
+   * @param array $traversableEntityTypes
+   *   Traversable entity types.
+   * @param array $traversableContentTypes
+   *   Traversable content types.
+   * @param int|null $revisionId
    *   (optional) Entity revision ID.
    *
    * @return array
@@ -123,9 +127,9 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    */
-  public function export(string $entityType, string $uuid, int $revisionId = NULL) {
+  public function export(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL) {
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
-    return $this->contentEntityExport->export($entity);
+    return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
   }
 
   /**
@@ -235,7 +239,8 @@ class ArgoService implements ArgoServiceInterface {
       $entity = $this->entityTypeManager
         ->getStorage($entityType)
         ->loadRevision($revisionId);
-    } else {
+    }
+    else {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
       $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);

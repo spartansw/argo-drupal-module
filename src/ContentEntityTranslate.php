@@ -118,6 +118,7 @@ class ContentEntityTranslate {
       if ($fieldItemList instanceof EntityReferenceFieldItemListInterface && $fieldItemList->getSetting('target_type') === 'paragraph') {
         foreach ($fieldItemList as $delta => $item) {
           if ($item->entity) {
+            /** @var \Drupal\paragraphs\Entity\Paragraph $paragraph */
             $paragraph = $item->entity;
             foreach ($translations as $translation) {
               $uuid = !empty($paragraph->duplicateSource) ? $paragraph->duplicateSource->uuid() : $paragraph->uuid();
@@ -131,6 +132,24 @@ class ContentEntityTranslate {
             }
 
             $fieldItemList[$delta] = $paragraph;
+          }
+        }
+      }
+      else {
+        foreach ($fieldItemList as $delta => $item) {
+          if ($item->entity) {
+            /** @var \Drupal\Core\Entity\EditorialContentEntityBase $ref */
+            $ref = $item->entity;
+            foreach ($translations as $translation) {
+              if ($ref->uuid() === $translation['entityId']) {
+                $this->translate($ref->getTranslation($targetLangcode), $targetLangcode, $translation);
+                $this->translateParagraphs($ref, $targetLangcode, $translations);
+                $ref->setNewRevision(TRUE);
+                break;
+              }
+            }
+
+            $fieldItemList[$delta] = $ref;
           }
         }
       }
