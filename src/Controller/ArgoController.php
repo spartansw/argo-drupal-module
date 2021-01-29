@@ -86,8 +86,10 @@ class ArgoController extends ControllerBase {
   public function exportContentEntity(Request $request) {
     $entityType = $request->get('type');
     $uuid = $request->get('uuid');
+    $traversableEntityTypes = $request->get('entity-types');
+    $traversableContentTypes = $request->get('content-types');
 
-    $export = $this->argoService->export($entityType, $uuid);
+    $export = $this->argoService->export($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
 
     return new JsonResponse($export);
   }
@@ -104,9 +106,11 @@ class ArgoController extends ControllerBase {
   public function exportContentEntityRevision(Request $request) {
     $entityType = $request->get('type');
     $uuid = $request->get('uuid');
+    $traversableEntityTypes = $request->get('entity-types');
+    $traversableContentTypes = $request->get('content-types');
     $revisionId = $request->get('revisionId');
 
-    $export = $this->argoService->export($entityType, $uuid, $revisionId);
+    $export = $this->argoService->export($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
 
     return new JsonResponse($export);
   }

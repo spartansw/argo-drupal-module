@@ -113,7 +113,11 @@ class ArgoService implements ArgoServiceInterface {
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
-   * @param int $revisionId
+   * @param array $traversableEntityTypes
+   *   Traversable entity types.
+   * @param array $traversableContentTypes
+   *   Traversable content types.
+   * @param int|null $revisionId
    *   (optional) Entity revision ID.
    *
    * @return array

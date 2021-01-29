@@ -105,7 +105,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $export = $this->contentEntityExport->export($node);
+    $export = $this->contentEntityExport->export($node, $traversableEntityTypes, $traversableContentTypes);
     $export['root']['items'][1]['value'] = $expectedTranslation;
 
     $this->assertEqual($export['items'][2]['path'], 'field_meta_tags.0.value.key1');
@@ -154,7 +154,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
     ]);
     $node->save();
 
-    $export = $this->contentEntityExport->export($node);
+    $export = $this->contentEntityExport->export($node, $traversableEntityTypes, $traversableContentTypes);
 
     $targetLangcode = $this->german->id();
     $export['root']['targetLangcode'] = $targetLangcode;
@@ -222,7 +222,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
       ]);
       $node->save();
 
-      $export = $this->contentEntityExport->export($node);
+      $export = $this->contentEntityExport->export($node, $traversableEntityTypes, $traversableContentTypes);
 
       if (isset($export['root']['items'][1])) {
         $this->assertEqual($export['root']['items'][1]['value'], 'test value');
@@ -236,7 +236,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
       /* @var \Drupal\node\NodeInterface $updatedSrcNode . */
       $updatedSrcNode = \Drupal::entityTypeManager()->getStorage('node')
         ->load($node->id());
-      $export2 = $this->contentEntityExport->export($updatedSrcNode);
+      $export2 = $this->contentEntityExport->export($updatedSrcNode, $traversableEntityTypes, $traversableContentTypes);
       $export2['root']['targetLangcode'] = $targetLangcode;
 
       $this->contentEntityTranslate->translate($updatedSrcNode, $targetLangcode, $export2);

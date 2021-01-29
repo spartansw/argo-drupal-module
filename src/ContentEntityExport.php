@@ -24,11 +24,15 @@ class ContentEntityExport {
    *
    * @param \Drupal\Core\Entity\ContentEntityInterface $entity
    *   Entity to export.
+   * @param array $traversableEntityTypes
+   *   Traversable entity types.
+   * @param array $traversableContentTypes
+   *   Traversable content types.
    *
    * @return array
    *   Exported entity.
    */
-  public function export(ContentEntityInterface $entity): array {
+  public function export(ContentEntityInterface $entity, array $traversableEntityTypes, array $traversableContentTypes): array {
     $translatableFields = $entity->getTranslatableFields(FALSE);
 
     foreach ($translatableFields as $name => $translatableField) {
@@ -189,16 +193,10 @@ class ContentEntityExport {
     $translationOut['warnings'] = $warnings;
 
     $references = [];
-    $traversableEntityTypes = [
-      'paragraph' => TRUE,
-    ];
-    $traversableContentTypes = [
-      'person' => TRUE,
-    ];
     foreach ($entity->referencedEntities() as $referencedEntity) {
       $referencedEntityTypeId = $referencedEntity->getEntityTypeId();
-      if (isset($traversableEntityTypes[$referencedEntityTypeId]) ||
-        ($referencedEntityTypeId === 'node' && isset($traversableContentTypes[$referencedEntity->bundle()]))) {
+      if (in_array($referencedEntityTypeId, $traversableEntityTypes) ||
+        ($referencedEntityTypeId === 'node' && in_array($referencedEntity->bundle(), $traversableContentTypes))) {
 
         $references[] = [
           'entityType' => $referencedEntityTypeId,
