@@ -60,7 +60,7 @@ function argo_form_field_config_edit_form_alter(&$form, FormStateInterface $form
   $bundle_is_translatable = \Drupal::service('content_translation.manager')
     ->isEnabled($field_config->getTargetEntityTypeId(), $field_config->getTargetBundle());
 
-  $form['argo_excluded'] = array(
+  $form['argo_excluded'] = [
     '#type' => 'checkbox',
     '#title' => t('Exclude from Argo translations'),
     '#weight' => 0,
@@ -72,11 +72,10 @@ function argo_form_field_config_edit_form_alter(&$form, FormStateInterface $form
       ],
     ],
     '#access' => $bundle_is_translatable,
-  );
+  ];
 
   $form['#entity_builders'][] = 'argo_entity_builder';
 }
-
 
 /**
  * Entity builder callback.

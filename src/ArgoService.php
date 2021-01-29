@@ -235,7 +235,8 @@ class ArgoService implements ArgoServiceInterface {
       $entity = $this->entityTypeManager
         ->getStorage($entityType)
         ->loadRevision($revisionId);
-    } else {
+    }
+    else {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
       $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);

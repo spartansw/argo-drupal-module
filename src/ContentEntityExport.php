@@ -127,7 +127,8 @@ class ContentEntityExport {
                           ];
                         }
                         continue;
-                      } else {
+                      }
+                      else {
                         // Empty array as value. Skip.
                         continue;
                       }
