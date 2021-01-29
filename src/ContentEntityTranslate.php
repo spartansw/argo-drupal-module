@@ -3,7 +3,6 @@
 namespace Drupal\argo;
 
 use Drupal\Core\Entity\ContentEntityInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\typed_data\DataFetcherInterface;
 
@@ -20,26 +19,15 @@ class ContentEntityTranslate {
   private $dataFetcher;
 
   /**
-   * The core entity type manager service.
-   *
-   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
-   */
-  private $entityTypeManager;
-
-  /**
    * The service constructor.
    *
    * @param \Drupal\typed_data\DataFetcherInterface $dataFetcher
    *   Data fetcher.
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
-   *   The core entity type manager service.
    */
   public function __construct(
-    DataFetcherInterface $dataFetcher,
-    EntityTypeManagerInterface $entityTypeManager
+    DataFetcherInterface $dataFetcher
   ) {
     $this->dataFetcher = $dataFetcher;
-    $this->entityTypeManager = $entityTypeManager;
   }
 
   /**
@@ -95,46 +83,6 @@ class ContentEntityTranslate {
     }
 
     return $targetEntity;
-  }
-
-  /**
-   * Translate paragraphs and their nested children.
-   *
-   * @param \Drupal\Core\Entity\ContentEntityInterface $targetEntity
-   *   The host entity to attach the paragraph translations to.
-   * @param string $targetLangcode
-   *   The target language to save the translation for.
-   * @param array $translations
-   *   The list of paragraph translations.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
-   * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
-   * @throws \Drupal\typed_data\Exception\InvalidArgumentException
-   */
-  public function translateParagraphs(ContentEntityInterface $targetEntity, $targetLangcode, array $translations) {
-    foreach ($targetEntity->getFields() as $fieldItemList) {
-      if ($fieldItemList instanceof EntityReferenceFieldItemListInterface && $fieldItemList->getSetting('target_type') === 'paragraph') {
-        foreach ($fieldItemList as $delta => $item) {
-          if ($item->entity) {
-            $paragraph = $item->entity;
-            foreach ($translations as $translation) {
-              $uuid = !empty($paragraph->duplicateSource) ? $paragraph->duplicateSource->uuid() : $paragraph->uuid();
-              if ($uuid === $translation['entityId']) {
-                $paragraph = $this->translate($paragraph->getTranslation($targetLangcode), $targetLangcode, $translation);
-                $this->translateParagraphs($paragraph, $targetLangcode, $translations);
-                $paragraph->setNewRevision(TRUE);
-                $paragraph->setNeedsSave(TRUE);
-                break;
-              }
-            }
-
-            $fieldItemList[$delta] = $paragraph;
-          }
-        }
-      }
-    }
   }
 
   /**

@@ -5,6 +5,7 @@ namespace Drupal\argo;
 use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EditorialContentEntityBase;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
@@ -13,7 +14,10 @@ use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\RevisionLogInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
+use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Language\Language;
+use Drupal\paragraphs\Entity\Paragraph;
+use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
 
 /**
@@ -127,65 +131,95 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    */
-  public function export(string $entityType, string $uuid, int $revisionId = NULL) {
+  public function export(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL) {
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
-    return $this->contentEntityExport->export($entity);
+    return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
   }
 
   /**
    * Translate.
    *
    * @param string $entityType
-   *   Entity type ID.
+   *   Entity type.
    * @param string $uuid
-   *   Entity UUID.
-   * @param array $translation
-   *   Translation object.
+   *   UUID.
+   * @param array $translations
+   *   Translations.
    *
-   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    * @throws \Drupal\Core\Entity\EntityStorageException
-   * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
-   * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
-  public function translate(string $entityType, string $uuid, array $translation) {
-    $langcode = $translation['root']['targetLangcode'];
-    $revisionId = $translation['root']['revisionId'] ?? NULL;
+  public function translate(string $entityType, string $uuid, array $translations) {
+    $rootTranslation = $translations['root'];
+    $childTranslations = $translations['children'];
+
+    $langcode = $rootTranslation['targetLangcode'];
+    $revisionId = $rootTranslation['revisionId'] ?? NULL;
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     $target_entity = $this->loadEntity($entityType, $uuid);
 
-    if ($target_entity->hasTranslation($langcode)) {
+    $translationsById = [$rootTranslation['entityId'] => $rootTranslation];
+    foreach ($childTranslations as $childTranslation) {
+      $translationsById[$childTranslation['entityId']] = $childTranslation;
+    }
+
+    $this->translateContentEntity($target_entity, $langcode, $translationsById);
+  }
+
+  /**
+   * Translate content entity.
+   *
+   * @param \Drupal\Core\Entity\ContentEntityInterface $source_entity
+   *   Source entity.
+   * @param string $langcode
+   *   Langcode.
+   * @param array $translationsById
+   *   Translations by ID.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
+   * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
+   * @throws \Drupal\typed_data\Exception\InvalidArgumentException
+   */
+  private function translateContentEntity(ContentEntityInterface $source_entity, string $langcode, array $translationsById) {
+    $translation = $translationsById[$source_entity->uuid()];
+
+    // Ensure translation exists.
+    if ($source_entity->hasTranslation($langcode)) {
       // Must remove existing translation because it might not have all fields.
-      $target_entity->removeTranslation($langcode);
+      $source_entity->removeTranslation($langcode);
     }
 
-    // Copy src fields to target.
-    $array = $entity->toArray();
-    $target_entity->addTranslation($langcode, $array);
-    $translated = $this->contentEntityTranslate->translate($target_entity->getTranslation($langcode), $langcode, $translation['root']);
+    // Copy source fields to target.
+    $array = $source_entity->toArray();
+    $source_entity->addTranslation($langcode, $array);
 
-    // Handle paragraphs.
-    if (!empty($translation['children'])) {
-      $this->contentEntityTranslate->translateParagraphs($translated, $langcode, $translation['children']);
-    }
+    $target_entity = $source_entity->getTranslation($langcode);
+
+    // Translate fields.
+    $translated = $this->contentEntityTranslate->translate($target_entity,
+      $langcode, $translationsById[$target_entity->uuid()]);
+
+    // Translate references.
+    $this->recurseReferences($target_entity, $langcode, $translationsById);
 
     if ($translated instanceof EntityPublishedInterface) {
       $translated->setUnpublished();
     }
-    if (isset($translation['root']['stateId'])) {
-      if ($translation['root']['stateId'] === 'published') {
+    if (isset($translation['stateId'])) {
+      if ($translation['stateId'] === 'published') {
         $translated->setPublished();
       }
     }
     if ($this->moderationInfo->isModeratedEntity($translated)) {
-      if (!isset($translation['root']['stateId']) || strlen($translation['root']['stateId']) < 1) {
+      if (!isset($translation['stateId']) || strlen($translation['stateId']) < 1) {
         /** @var \Drupal\content_moderation\Plugin\WorkflowType\ContentModerationInterface $contentModeration */
         $contentModeration = $this->moderationInfo->getWorkflowForEntity($translated)->getTypePlugin();
         $stateId = $contentModeration->getInitialState($translated)->id();
       }
       else {
-        $stateId = $translation['root']['stateId'];
+        $stateId = $translation['stateId'];
       }
       $translated->set('moderation_state', $stateId);
     }
@@ -209,6 +243,79 @@ class ArgoService implements ArgoServiceInterface {
     $translated->setRevisionTranslationAffectedEnforced(TRUE);
 
     $translated->save();
+  }
+
+  /**
+   * Recurse references.
+   *
+   * @param \Drupal\Core\Entity\ContentEntityInterface $target_entity
+   *   Target entity.
+   * @param string $langcode
+   *   Langcode.
+   * @param array $translationsById
+   *   Translations by ID.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
+   * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
+   * @throws \Drupal\typed_data\Exception\InvalidArgumentException
+   */
+  private function recurseReferences(ContentEntityInterface $target_entity, string $langcode, array $translationsById) {
+    foreach ($target_entity->getFields(FALSE) as $fieldItemList) {
+      if ($fieldItemList instanceof EntityReferenceFieldItemListInterface) {
+        foreach ($fieldItemList as $delta => $item) {
+          /** @var \Drupal\Core\Entity\EntityInterface $item */
+          if ($item->entity) {
+            $referencedEntity = $item->entity;
+            $uuid = !empty($referencedEntity->duplicateSource) ? $referencedEntity->duplicateSource->uuid() : $referencedEntity->uuid();
+            if (isset($translationsById[$uuid])) {
+              if ($referencedEntity instanceof ParagraphInterface) {
+                // Replace parent field with reference to translated paragraph.
+                $fieldItemList[$delta] = $this->translateParagraph($referencedEntity, $uuid, $langcode, $translationsById);
+              }
+              elseif ($referencedEntity instanceof ContentEntityInterface) {
+                $this->translateContentEntity($referencedEntity, $langcode, $translationsById);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Translate paragraph.
+   *
+   * @param \Drupal\paragraphs\Entity\ParagraphInterface $paragraph
+   *   Paragraph.
+   * @param string $uuid
+   *   UUID.
+   * @param string $langcode
+   *   Langcode.
+   * @param array $translationsById
+   *   Translations by ID.
+   *
+   * @return \Drupal\core\Entity\ContentEntityInterface
+   *   Translated paragraph.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
+   * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
+   * @throws \Drupal\typed_data\Exception\InvalidArgumentException
+   */
+  private function translateParagraph(ParagraphInterface $paragraph,
+                                      string $uuid,
+                                      string $langcode,
+                                      array $translationsById) {
+    $translated = $this->contentEntityTranslate->translate($paragraph->getTranslation($langcode),
+      $langcode, $translationsById[$uuid]);
+
+    $this->recurseReferences($translated, $langcode, $translationsById);
+
+    $translated->setNewRevision(TRUE);
+    $translated->setNeedsSave(TRUE);
+
+    return $translated;
   }
 
   /**
