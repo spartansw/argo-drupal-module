@@ -42,6 +42,47 @@ class ArgoController extends ControllerBase {
   }
 
   /**
+   * Exports config strings for translation.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function exportConfig(Request $request) {
+    $langcode = $request->get('langcode');
+    $export = $this->argoService->exportConfig($langcode);
+
+    return new JsonResponse($export);
+  }
+
+  /**
+   * Translates config strings into Drupal.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function translateConfig(Request $request) {
+    $langcode = $request->get('langcode');
+    $translations = Json::decode($request->getContent());
+
+    try {
+      $this->argoService->translateConfig($langcode, $translations);
+    } catch (\Exception $e) {
+      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'message' => $e->__toString(),
+      ],
+        Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
+    return new JsonResponse();
+  }
+
+  /**
    * Lists updated editorial content entity metadata.
    *
    * Uses a single 'changed' field type.
@@ -208,6 +249,47 @@ class ArgoController extends ControllerBase {
     $entityInfo = $this->argoService->entityInfo($type, $id);
 
     return new JsonResponse($entityInfo);
+  }
+
+  /**
+   * Exports UI strings for translation.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function exportLocale(Request $request) {
+    $langcode = $request->get('langcode');
+    $export = $this->argoService->exportLocale($langcode);
+
+    return new JsonResponse($export);
+  }
+
+  /**
+   * Translates UI strings into Drupal.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function translateLocale(Request $request) {
+    $langcode = $request->get('langcode');
+    $translations = Json::decode($request->getContent());
+
+    try {
+      $this->argoService->translateLocale($langcode, $translations);
+    } catch (\Exception $e) {
+      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'message' => $e->__toString(),
+      ],
+        Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
+    return new JsonResponse();
   }
 
 }

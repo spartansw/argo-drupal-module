@@ -8,7 +8,27 @@ namespace Drupal\argo;
 interface ArgoServiceInterface {
 
   /**
-   * Export.
+   * Export configuration (entity) strings.
+   *
+   * @param string $langcode
+   *   Language to retrieve (untranslated) config values for.
+   * @param array $options
+   *   List of options used to control export.
+   */
+  public function exportConfig(string $langcode, array $options = []);
+
+  /**
+   * Import configuration (entity) translations.
+   *
+   * @param string $langcode
+   *   The language to save the config translations in.
+   * @param array $translations
+   *   List of config translations.
+   */
+  public function translateConfig(string $langcode, array $translations);
+
+  /**
+   * Export content entity.
    *
    * @param string $entityType
    *   Entity type ID.
@@ -24,19 +44,19 @@ interface ArgoServiceInterface {
    * @return mixed
    *   Export object.
    */
-  public function export(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL);
+  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL);
 
   /**
-   * Translate.
+   * Translate content entity.
    *
    * @param string $entityType
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
-   * @param array $translation
+   * @param array $translations
    *   Translation object.
    */
-  public function translate(string $entityType, string $uuid, array $translation);
+  public function translateContent(string $entityType, string $uuid, array $translations);
 
   /**
    * Get updated.
@@ -62,5 +82,25 @@ interface ArgoServiceInterface {
    * Get entity UUID & revision ID.
    */
   public function entityInfo($type, $id);
+
+  /**
+   * Export UI strings.
+   *
+   * @param string $langcode
+   *   Language to retrieve (untranslated) config values for.
+   * @param array $options
+   *   List of options used to control export.
+   */
+  public function exportLocale(string $langcode, array $options = []);
+
+  /**
+   * Import UI translations.
+   *
+   * @param string $langcode
+   *   The language to save the config translations in.
+   * @param array $translations
+   *   List of config translations.
+   */
+  public function translateLocale(string $langcode, array $translations);
 
 }

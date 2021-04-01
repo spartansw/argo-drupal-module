@@ -1,4 +1,52 @@
-argo.updated:
+# Admin UI
+argo.settings:
+  path: '/admin/config/development/configuration/argo'
+  defaults:
+    _form: '\Drupal\argo\Form\SettingsForm'
+    _title: 'Argo'
+  requirements:
+    _permission: 'translate content using argo'
+
+# API Endpoints
+# Config translation
+argo.config.export:
+  path: /argo/config/{langcode}/export
+  defaults:
+    _title: 'Export config (entities) for translation'
+    _controller: '\Drupal\argo\Controller\ArgoController::exportConfig'
+  requirements:
+    _format: 'json'
+    _permission: 'translate content using argo'
+  methods: ['GET']
+  options:
+    no_cache: TRUE
+
+argo.config.translation:
+  path: /argo/config/{langcode}/translation
+  defaults:
+    _title: 'ARGO config translation endpoint'
+    _controller: '\Drupal\argo\Controller\ArgoController::translateConfig'
+  requirements:
+    _format: 'json'
+    _permission: 'translate content using argo'
+  methods: ['POST']
+  options:
+    no_cache: TRUE
+
+# Content translation
+argo.content.entity_uuid:
+  path: /argo/entity-uuid
+  defaults:
+    _title: 'Lookup UUID for an entity by ID'
+    _controller: '\Drupal\argo\Controller\ArgoController::entityUuid'
+  requirements:
+    _format: 'json'
+    _permission: 'translate content using argo'
+  methods: ['GET']
+  options:
+    no_cache: TRUE
+
+argo.content.updated:
   path: /argo/content-entity/{type}/updated
   defaults:
     _title: 'Get content entity metadata'
@@ -10,7 +58,7 @@ argo.updated:
   options:
     no_cache: TRUE
 
-argo.get_deletion_log:
+argo.content.get_deletion_log:
   path: /argo/content-entity/deletion-log
   defaults:
     _title: 'Fetch deleted entity IDs'
@@ -21,7 +69,7 @@ argo.get_deletion_log:
   options:
     no_cache: TRUE
 
-argo.reset_deletion_log:
+argo.content.reset_deletion_log:
   path: /argo/content-entity/deletion-log
   defaults:
     _title: 'Reset deleted entity ID log'
@@ -32,7 +80,7 @@ argo.reset_deletion_log:
   options:
     no_cache: TRUE
 
-argo.export:
+argo.content.export:
   path: /argo/content-entity/{type}/{uuid}/export
   defaults:
     _title: 'Export content entity for translation'
@@ -56,7 +104,7 @@ argo.export_revision:
   options:
     no_cache: TRUE
 
-argo.translation:
+argo.content.translation:
   path: /argo/content-entity/{type}/{uuid}/translation
   defaults:
     _title: 'ARGO translation endpoint'
@@ -77,5 +125,30 @@ argo.entity_uuid:
     _format: 'json'
     _permission: 'translate content using argo'
   methods: ['GET']
+  options:
+    no_cache: TRUE
+
+# UI String (locale) translation
+argo.locale.export:
+  path: /argo/locale/{langcode}/export
+  defaults:
+    _title: 'Export UI strings for translation'
+    _controller: '\Drupal\argo\Controller\ArgoController::exportLocale'
+  requirements:
+    _format: 'json'
+    _permission: 'translate content using argo'
+  methods: ['GET']
+  options:
+    no_cache: TRUE
+
+argo.locale.translation:
+  path: /argo/locale/{langcode}/translation
+  defaults:
+    _title: 'ARGO UI string translation endpoint'
+    _controller: '\Drupal\argo\Controller\ArgoController::translateLocale'
+  requirements:
+    _format: 'json'
+    _permission: 'translate content using argo'
+  methods: ['POST']
   options:
     no_cache: TRUE
