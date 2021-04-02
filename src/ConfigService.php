@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ConfigManagerInterface;
 use Drupal\Core\Config\StorageInterface;
@@ -113,7 +114,7 @@ class ConfigService {
    */
   public function export(string $langcode, array $options = []) {
     // Merge in default options.
-    $options = ['include_translations' => TRUE] + $options;
+    $options += ['include_translations' => FALSE];
     $items = [];
     // Retrieves a list of configs which are eligible for Argo export.
     $translatable_config_keys = $this->config->get('config.translatable');
@@ -285,17 +286,18 @@ class ConfigService {
       }
 
       foreach ($config as $key => $value) {
-        $translation = $config_translation[$key] ?? [];
-        // Skip adding config values which already contain a translation if we
-        // are filtering out existing translations in the export.
-        if (!$include_translations && !empty($translation)) {
-          continue;
+        $items = $this->prepareForExport($value, $key);
+        foreach ($items as $delta => &$item) {
+          $translation = NestedArray::getValue($config_translation, explode('.', $item['key']));
+          // Filter out config values with a translation if configured as such.
+          if (!$include_translations && !empty($translation)) {
+            unset($items[$delta]);
+            continue;
+          }
+
+          $item['config_id'] = $name;
         }
-        $result = $this->prepareForExport($value, $key);
-        foreach ($result as &$item) {
-            $item['config_id'] = $name;
-        }
-        $export = array_merge($export, $result);
+        $export = array_merge($export, $items);
       }
     }
 
