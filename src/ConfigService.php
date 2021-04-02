@@ -162,7 +162,7 @@ class ConfigService {
           $webform = $this->configManager->loadConfigEntityByName($config_id);
           /** @var WebformTranslationManagerInterface $webform_translation_manager */
           $webform_translation_manager = \Drupal::service('webform.translation_manager');
-          $config[$config_id]['elements'] = $webform_translation_manager->getTranslationElements($webform, $langcode);
+          $configs[$config_id]->set('elements', $webform_translation_manager->getTranslationElements($webform, $langcode));
         }
       }
       $config = $configs[$config_id];
@@ -173,7 +173,9 @@ class ConfigService {
     foreach ($configs as $config_id => $config) {
       // Convert webform elements back to YAML prior to saving.
       if ($this->isWebformConfig($config_id)) {
-        $config['elements'] = ($config['elements']) ? Yaml::encode($config['elements']) : '';
+        $elements = $config->get('elements', []);
+        $elements_yaml = ($elements) ? Yaml::encode($elements) : '';
+        $config->set('elements', $elements_yaml);
       }
 
       $config->save();
