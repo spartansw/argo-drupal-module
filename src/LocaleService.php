@@ -14,7 +14,7 @@ class LocaleService {
    * Creates a new instance of the Argo locale translation service.
    */
   public function __construct(StringDatabaseStorage $stringStorage) {
-      $this->stringStorage = $stringStorage;
+    $this->stringStorage = $stringStorage;
   }
 
   /**
@@ -41,7 +41,7 @@ class LocaleService {
    */
   public function export(string $langcode, array $options = []) {
     // Merge in default options.
-    $options = ['include_translations' => TRUE] + $options;
+    $options += ['include_translations' => FALSE];
     $items = [];
     // @todo remove dependency on tableau_i18n_locale module. Maybe invoke an event/hook so that custom Tableau modules
     //   can hook into this?
