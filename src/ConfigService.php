@@ -7,10 +7,9 @@ use Drupal\Core\Config\ConfigManagerInterface;
 use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
+use Drupal\Core\Serialization\Yaml;
 use Drupal\Core\TypedData\TraversableTypedDataInterface;
 use Drupal\Core\TypedData\TypedDataInterface;
-use Drupal\webform\Entity\Webform;
-use Drupal\webform\WebformTranslationConfigManager;
 use Drupal\webform\WebformTranslationManagerInterface;
 
 /**
@@ -153,18 +152,47 @@ class ConfigService {
       // can save all of them at once at the very end.
       if (!isset($configs[$config_id])) {
         $configs[$config_id] = $this->languageManager->getLanguageConfigOverride($langcode, $config_id);
+
+        // Webforms require special handling of their webform elements. We
+        // parse the YAML to a nested array so each property of the elements
+        // can be translated separately.
+        if ($this->isWebformConfig($config_id)) {
+          /** @var \Drupal\webform\WebformInterface $webform */
+          $webform = $this->configManager->loadConfigEntityByName($config_id);
+          /** @var WebformTranslationManagerInterface $webform_translation_manager */
+          $webform_translation_manager = \Drupal::service('webform.translation_manager');
+          $config[$config_id]['elements'] = $webform_translation_manager->getTranslationElements($webform, $langcode);
+        }
       }
       $config = $configs[$config_id];
       $config->set($key, $translation);
     }
 
     // Bulk save all the changes.
-    foreach ($configs as $config) {
+    foreach ($configs as $config_id => $config) {
+      // Convert webform elements back to YAML prior to saving.
+      if ($this->isWebformConfig($config_id)) {
+        $config['elements'] = ($config['elements']) ? Yaml::encode($config['elements']) : '';
+      }
+
       $config->save();
     }
   }
 
   // Internal helper functions.
+
+  /**
+   * Checks if a given config name is used for a webform entity.
+   *
+   * @param string $name
+   *   The name of the configuration entity.
+   *
+   * @return bool
+   *   TRUE if the configuration is a webform, FALSE otherwise.
+   */
+  private function isWebformConfig($name) {
+    return (strpos($name, 'webform') === 0);
+  }
 
   /**
    * Gets list of translatable data for a given config name/id.
@@ -247,14 +275,13 @@ class ConfigService {
       $config_translation = $this->languageManager->getLanguageConfigOverride($langcode, $name)->get();
 
       // Webforms require special handling of their elements.
-      $is_webform = strpos($name, 'webform') === 0;
-
-      if ($is_webform) {
-          $webform = $this->configManager->loadConfigEntityByName($name);
-          /** @var WebformTranslationManagerInterface $webform_translation_manager */
-          $webform_translation_manager = \Drupal::service('webform.translation_manager');
-          $config['elements'] = $webform_translation_manager->getSourceElements($webform);
-          $config_translation['elements'] = $webform_translation_manager->getTranslationElements($webform, $langcode);
+      if ($this->isWebformConfig($name)) {
+        /** @var \Drupal\webform\WebformInterface $webform */
+        $webform = $this->configManager->loadConfigEntityByName($name);
+        /** @var WebformTranslationManagerInterface $webform_translation_manager */
+        $webform_translation_manager = \Drupal::service('webform.translation_manager');
+        $config['elements'] = $webform_translation_manager->getSourceElements($webform);
+        $config_translation['elements'] = $webform_translation_manager->getTranslationElements($webform, $langcode);
       }
 
       foreach ($config as $key => $value) {
