@@ -2,14 +2,7 @@
 
 namespace Drupal\argo;
 
-use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Core\Config\StorageInterface;
-use Drupal\Core\Config\TypedConfigManagerInterface;
-use Drupal\Core\Language\LanguageManagerInterface;
-use Drupal\Core\TypedData\TraversableTypedDataInterface;
-use Drupal\Core\TypedData\TypedDataInterface;
 use Drupal\locale\StringDatabaseStorage;
-use Drupal\tableau_i18n_locale\TableauLocaleStringDatabaseStorage;
 use Drupal\tableau_i18n_locale\TableauLocaleStringInterface;
 
 /**
@@ -91,12 +84,12 @@ class LocaleService {
    */
   public function import(string $langcode, array $translations) {
     foreach ($translations as $translation) {
-        $string = $this->stringStorage->findString(['source' => $translation['string']]);
-        $translated_string = $this->stringStorage->createTranslation([
-            'lid' => $string->lid,
-            'language' => $langcode,
-            'translation' => $translation['translation'],
-        ])->save();
+      $string = $this->stringStorage->findString(['source' => $translation['string']]);
+      $this->stringStorage->createTranslation([
+        'lid' => $string->lid,
+        'language' => $langcode,
+        'translation' => $translation['translation'],
+      ])->save();
     }
   }
 
