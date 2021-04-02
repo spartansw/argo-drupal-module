@@ -52,7 +52,10 @@ class ArgoController extends ControllerBase {
    */
   public function exportConfig(Request $request) {
     $langcode = $request->get('langcode');
-    $export = $this->argoService->exportConfig($langcode);
+    $include_translations = (bool) $request->query->get('include-translations', FALSE);
+    $export = $this->argoService->exportConfig($langcode, [
+      'include_translations' => $include_translations,
+    ]);
 
     return new JsonResponse($export);
   }
@@ -262,7 +265,10 @@ class ArgoController extends ControllerBase {
    */
   public function exportLocale(Request $request) {
     $langcode = $request->get('langcode');
-    $export = $this->argoService->exportLocale($langcode);
+    $include_translations = (bool) $request->query->get('include-translations', FALSE);
+    $export = $this->argoService->exportLocale($langcode, [
+      'include_translations' => $include_translations,
+    ]);
 
     return new JsonResponse($export);
   }
