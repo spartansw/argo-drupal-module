@@ -1,3 +1,17 @@
+argo.settings:
+  type: config_object
+  label: 'Argo Settings'
+  mapping:
+    config:
+      type: mapping
+      label: 'Configuration translation settings'
+      mapping:
+        translatable:
+          type: sequence
+          label: 'List of configurations to include for Argo translation'
+          sequence:
+            type: string
+
 field.field.*.*.*.third_party.argo:
   type: mapping
   label: 'Argo translation field settings'

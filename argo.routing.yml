@@ -104,6 +104,18 @@ argo.content.translation:
   options:
     no_cache: TRUE
 
+argo.content.entity_uuid:
+  path: /argo/entity-uuid
+  defaults:
+    _title: 'Lookup UUID for an entity by ID'
+    _controller: '\Drupal\argo\Controller\ArgoController::entityUuid'
+  requirements:
+    _format: 'json'
+    _permission: 'translate content using argo'
+  methods: ['GET']
+  options:
+    no_cache: TRUE
+
 # UI String (locale) translation
 argo.locale.export:
   path: /argo/locale/{langcode}/export

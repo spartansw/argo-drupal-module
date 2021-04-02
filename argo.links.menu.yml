@@ -1,0 +1,5 @@
+argo.settings:
+  title: 'Argo settings'
+  route_name: argo.settings
+  description: 'Configure Argo.'
+  parent: system.admin_config_regional
