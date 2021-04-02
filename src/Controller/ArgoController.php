@@ -3,6 +3,7 @@
 namespace Drupal\argo\Controller;
 
 use Drupal\argo\ArgoServiceInterface;
+use Drupal\Component\Serialization\Json;
 use Drupal\Core\Controller\ControllerBase;
 use Psr\Log\LogLevel;
 use Symfony\Component\DependencyInjection\ContainerInterface;
