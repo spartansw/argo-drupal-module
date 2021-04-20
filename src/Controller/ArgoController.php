@@ -5,6 +5,7 @@ namespace Drupal\argo\Controller;
 use Drupal\argo\ArgoServiceInterface;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Logger\LoggerChannelInterface;
 use Psr\Log\LogLevel;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,13 +25,23 @@ class ArgoController extends ControllerBase {
   private $argoService;
 
   /**
+   * Logger service.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannelInterface
+   */
+  private $logger;
+
+  /**
    * Argo constructor.
    *
    * @param \Drupal\argo\ArgoServiceInterface $argoService
    *   Argo service.
+   * @param \Drupal\Core\Logger\LoggerChannelInterface $logger
+   *   Argo logger.
    */
-  public function __construct(ArgoServiceInterface $argoService) {
+  public function __construct(ArgoServiceInterface $argoService, LoggerChannelInterface $logger) {
     $this->argoService = $argoService;
+    $this->logger = $logger;
   }
 
   /**
@@ -38,7 +49,8 @@ class ArgoController extends ControllerBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('argo.service')
+      $container->get('argo.service'),
+      $container->get('logger.channel.argo')
     );
   }
 
@@ -77,7 +89,7 @@ class ArgoController extends ControllerBase {
     try {
       $this->argoService->translateConfig($langcode, $translations);
     } catch (\Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
       ],
@@ -110,7 +122,7 @@ class ArgoController extends ControllerBase {
         $publishedOnlyBundles, $langcode);
     }
     catch (\Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
       ],
@@ -181,7 +193,7 @@ class ArgoController extends ControllerBase {
       $this->argoService->translate($entityType, $uuid, $translation);
     }
     catch (\Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
       ],
@@ -225,7 +237,7 @@ class ArgoController extends ControllerBase {
       $this->argoService->resetDeletionLog($deleted);
     }
     catch (\Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
       ],
@@ -290,7 +302,7 @@ class ArgoController extends ControllerBase {
     try {
       $this->argoService->translateLocale($langcode, $translations);
     } catch (\Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
       ],

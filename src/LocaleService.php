@@ -3,7 +3,6 @@
 namespace Drupal\argo;
 
 use Drupal\locale\StringDatabaseStorage;
-use Drupal\tableau_i18n_locale\TableauLocaleStringInterface;
 
 /**
  * Handles locale export and translation.
@@ -43,11 +42,11 @@ class LocaleService {
     // Merge in default options.
     $options += ['include_translations' => FALSE];
     $items = [];
-    // @todo remove dependency on tableau_i18n_locale module. Maybe invoke an event/hook so that custom Tableau modules
-    //   can hook into this?
+    // @todo remove dependency on tableau_i18n_locale module. Maybe invoke an
+    //   event/hook so that custom Tableau modules can hook into this?
     $strings = $this->stringStorage->getStrings([
       'translated' => $options['include_translations'],
-      'visibility' => TableauLocaleStringInterface::EXTERNAL,
+      'visibility' => 'external',
     ]);
 
     foreach ($strings as $string) {

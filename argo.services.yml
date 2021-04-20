@@ -1,4 +1,8 @@
 services:
+  # Channel specific logger derived from the base service.
+  logger.channel.argo:
+    parent: logger.channel_base
+    arguments: ['argo']
   argo.service:
     class: Drupal\argo\ArgoService
     arguments:

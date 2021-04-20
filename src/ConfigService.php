@@ -11,7 +11,6 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Serialization\Yaml;
 use Drupal\Core\TypedData\TraversableTypedDataInterface;
 use Drupal\Core\TypedData\TypedDataInterface;
-use Drupal\webform\WebformTranslationManagerInterface;
 
 /**
  * Handles config (entity) export and translation.
@@ -119,6 +118,8 @@ class ConfigService {
     // Retrieves a list of configs which are eligible for Argo export.
     $translatable_config_keys = $this->config->get('config.translatable');
     foreach ($translatable_config_keys as $key) {
+      // @todo Make this work with fuzzy sub keys. Currently this only works
+      // when the key has the asterisk at the end of the config name.
       $prefix = str_replace('*', '', $key);
       $items = array_merge($items, $this->doExport($langcode, $this->configStorage->listAll($prefix), $options));
     }
@@ -160,7 +161,7 @@ class ConfigService {
         if ($this->isWebformConfig($config_id)) {
           /** @var \Drupal\webform\WebformInterface $webform */
           $webform = $this->configManager->loadConfigEntityByName($config_id);
-          /** @var WebformTranslationManagerInterface $webform_translation_manager */
+          /** @var \Drupal\webform\WebformTranslationManagerInterface $webform_translation_manager */
           $webform_translation_manager = \Drupal::service('webform.translation_manager');
           $configs[$config_id]->set('elements', $webform_translation_manager->getTranslationElements($webform, $langcode));
         }
@@ -263,7 +264,7 @@ class ConfigService {
    * @return array
    *   List of config strings with metadata about the config, context etc...
    *
-   * @see \Drupal\argo\ConfigTranslation::export for list of available options.]
+   * @see \Drupal\argo\ConfigTranslation::export for list of available options.
    */
   protected function doExport(string $langcode, array $names, array $options) {
     $export = [];
