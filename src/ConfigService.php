@@ -143,12 +143,14 @@ class ConfigService {
         }
 
         $items = $this->doExport($config);
-        foreach ($items as &$item) {
+        foreach ($items as $delta => &$item) {
+          $item['config_id'] = $config_name;
           $translation = NestedArray::getValue($config_translation, explode('.', $item['key']));
-          if (!$options['include_translations'] && !empty($translation)) {
+          $has_translation = !empty($translation) && $translation !== $item['string'];
+          if (!$options['include_translations'] && $has_translation) {
+            unset($items[$delta]);
             continue;
           }
-          $item['config_id'] = $config_name;
         }
         $export = array_merge($export, $items);
       }
