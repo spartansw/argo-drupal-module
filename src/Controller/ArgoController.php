@@ -146,7 +146,7 @@ class ArgoController extends ControllerBase {
     $traversableEntityTypes = $request->get('entity-types');
     $traversableContentTypes = $request->get('content-types');
 
-    $export = $this->argoService->export($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
+    $export = $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
 
     return new JsonResponse($export);
   }
@@ -167,7 +167,7 @@ class ArgoController extends ControllerBase {
     $traversableContentTypes = $request->get('content-types');
     $revisionId = $request->get('revisionId');
 
-    $export = $this->argoService->export($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
+    $export = $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
 
     return new JsonResponse($export);
   }
@@ -190,7 +190,7 @@ class ArgoController extends ControllerBase {
     $translation = json_decode($request->getContent(), TRUE);
 
     try {
-      $this->argoService->translate($entityType, $uuid, $translation);
+      $this->argoService->translateContent($entityType, $uuid, $translation);
     }
     catch (\Exception $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
