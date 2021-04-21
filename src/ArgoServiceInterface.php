@@ -17,9 +17,9 @@ interface ArgoServiceInterface {
    *   [
    *     'include_translations' => 'Whether or not to include already translated
    *       values',
-   *   ]
+   *   ].
    *
-   *  @return mixed
+   * @return mixed
    *   List of configuration strings as JSON. Each item consists of:
    *    [
    *     'config_id' => 'The unique identifier for the configuration',
@@ -47,7 +47,7 @@ interface ArgoServiceInterface {
    *     'translation' => 'The translated value of the string.',
    *     'context' => 'Context for the string.',
    *     'url' => 'The url at which the string is found.',
-   *   ]
+   *   ].
    */
   public function translateConfig(string $langcode, array $translations);
 
@@ -117,7 +117,7 @@ interface ArgoServiceInterface {
    *   [
    *     'include_translations' => 'Whether or not to include already translated
    *       values',
-   *   ]
+   *   ].
    *
    * @return mixed
    *   List of UI strings as JSON object. Each item consists of:
@@ -143,7 +143,7 @@ interface ArgoServiceInterface {
    *     'translation' => 'The translated value of the string.',
    *     'context' => 'Context for the string.',
    *     'url' => 'The url at which the string is found.',
-   *   ]
+   *   ].
    */
   public function translateLocale(string $langcode, array $translations);
 

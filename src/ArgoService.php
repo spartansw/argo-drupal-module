@@ -131,8 +131,6 @@ class ArgoService implements ArgoServiceInterface {
     $this->connection = $connection;
   }
 
-
-
   /**
    * {@inheritdoc}
    */

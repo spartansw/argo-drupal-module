@@ -59,19 +59,20 @@ class ConfigService {
    */
   protected $configManager;
 
-    /**
-     * Creates a new instance of the Argo configuration translation service.
-     *
-     * @param ConfigFactoryInterface $config_factory
-     *   The Drupal config factory.
-     * @param \Drupal\Core\Config\StorageInterface $config_storage
-     *   The storage object to use for reading configuration data.
-     * @param ConfigManagerInterface $config_manager
-     * @param \Drupal\Core\Config\TypedConfigManagerInterface $typed_config
-     *   The typed configuration manager.
-     * @param \Drupal\Core\Language\LanguageManagerInterface $language_manager
-     *   The language manager service.
-     */
+  /**
+   * Creates a new instance of the Argo configuration translation service.
+   *
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
+   *   The Drupal config factory.
+   * @param \Drupal\Core\Config\StorageInterface $config_storage
+   *   The storage object to use for reading configuration data.
+   * @param \Drupal\Core\Config\ConfigManagerInterface $config_manager
+   *   Configuration manager service.
+   * @param \Drupal\Core\Config\TypedConfigManagerInterface $typed_config
+   *   The typed configuration manager.
+   * @param \Drupal\Core\Language\LanguageManagerInterface $language_manager
+   *   The language manager service.
+   */
   public function __construct(
     ConfigFactoryInterface $config_factory,
     StorageInterface $config_storage,
@@ -97,7 +98,7 @@ class ConfigService {
    *   [
    *     'include_translations' => 'Whether or not to include already translated
    *       values',
-   *   ]
+   *   ].
    *
    * @return array
    *   List of configuration strings:
@@ -114,17 +115,46 @@ class ConfigService {
   public function export(string $langcode, array $options = []) {
     // Merge in default options.
     $options += ['include_translations' => FALSE];
-    $items = [];
+    $export = [];
     // Retrieves a list of configs which are eligible for Argo export.
-    $translatable_config_keys = $this->config->get('config.translatable');
-    foreach ($translatable_config_keys as $key) {
+    $translatable_configs = $this->config->get('config.translatable');
+    foreach ($translatable_configs as $pattern) {
       // @todo Make this work with fuzzy sub keys. Currently this only works
       // when the key has the asterisk at the end of the config name.
-      $prefix = str_replace('*', '', $key);
-      $items = array_merge($items, $this->doExport($langcode, $this->configStorage->listAll($prefix), $options));
+      $prefix = str_replace('*', '', $pattern);
+
+      foreach ($this->configStorage->listAll($prefix) as $config_name) {
+        $config = $this->getTranslatableConfig($config_name);
+        if (empty($config)) {
+          // If there is nothing translatable in this configuration, skip it.
+          continue;
+        }
+
+        $config_translation = $this->languageManager->getLanguageConfigOverride($langcode, $config_name)->get();
+
+        // Webforms require special handling of their elements.
+        if ($this->isWebformConfig($config_name)) {
+          /** @var \Drupal\webform\WebformInterface $webform */
+          $webform = $this->configManager->loadConfigEntityByName($config_name);
+          /** @var \Drupal\webform\WebformTranslationManagerInterface $webform_translation_manager */
+          $webform_translation_manager = \Drupal::service('webform.translation_manager');
+          $config['elements'] = $webform_translation_manager->getSourceElements($webform);
+          $config_translation['elements'] = $webform_translation_manager->getTranslationElements($webform, $langcode);
+        }
+
+        $items = $this->doExport($config);
+        foreach ($items as &$item) {
+          $translation = NestedArray::getValue($config_translation, explode('.', $item['key']));
+          if (!$options['include_translations'] && !empty($translation)) {
+            continue;
+          }
+          $item['config_id'] = $config_name;
+        }
+        $export = array_merge($export, $items);
+      }
     }
 
-    return $items;
+    return $export;
   }
 
   /**
@@ -141,7 +171,7 @@ class ConfigService {
    *     'translation' => 'The translated value of the string.',
    *     'context' => 'Context for the string.',
    *     'url' => 'The url at which the string is found.',
-   *   ]
+   *   ].
    */
   public function import(string $langcode, array $translations) {
     $configs = [];
@@ -174,7 +204,7 @@ class ConfigService {
     foreach ($configs as $config_id => $config) {
       // Convert webform elements back to YAML prior to saving.
       if ($this->isWebformConfig($config_id)) {
-        $elements = $config->get('elements', []);
+        $elements = $config->get('elements') ?? [];
         $elements_yaml = ($elements) ? Yaml::encode($elements) : '';
         $config->set('elements', $elements_yaml);
       }
@@ -183,7 +213,7 @@ class ConfigService {
     }
   }
 
-  // Internal helper functions.
+  /* Internal helper functions. */
 
   /**
    * Checks if a given config name is used for a webform entity.
@@ -252,76 +282,23 @@ class ConfigService {
   }
 
   /**
-   * Do the export of config translations for a given list of config names.
-   *
-   * @param string $langcode
-   *   The langcode for which to export config strings.
-   * @param array $names
-   *   The list of config id's to export the translations for.
-   * @param array $options
-   *   Additional export options.
-   *
-   * @return array
-   *   List of config strings with metadata about the config, context etc...
-   *
-   * @see \Drupal\argo\ConfigTranslation::export for list of available options.
-   */
-  protected function doExport(string $langcode, array $names, array $options) {
-    $export = [];
-    $include_translations = $options['include_translations'];
-    foreach ($names as $name) {
-      $config = $this->getTranslatableConfig($name);
-      if (empty($config)) {
-        // If there is nothing translatable in this configuration, skip it.
-        continue;
-      }
-
-      $config_translation = $this->languageManager->getLanguageConfigOverride($langcode, $name)->get();
-
-      // Webforms require special handling of their elements.
-      if ($this->isWebformConfig($name)) {
-        /** @var \Drupal\webform\WebformInterface $webform */
-        $webform = $this->configManager->loadConfigEntityByName($name);
-        /** @var WebformTranslationManagerInterface $webform_translation_manager */
-        $webform_translation_manager = \Drupal::service('webform.translation_manager');
-        $config['elements'] = $webform_translation_manager->getSourceElements($webform);
-        $config_translation['elements'] = $webform_translation_manager->getTranslationElements($webform, $langcode);
-      }
-
-      foreach ($config as $key => $value) {
-        $items = $this->prepareForExport($value, $key);
-        foreach ($items as $delta => &$item) {
-          $translation = NestedArray::getValue($config_translation, explode('.', $item['key']));
-          // Filter out config values with a translation if configured as such.
-          if (!$include_translations && !empty($translation)) {
-            unset($items[$delta]);
-            continue;
-          }
-
-          $item['config_id'] = $name;
-        }
-        $export = array_merge($export, $items);
-      }
-    }
-
-    return $export;
-  }
-
-  /**
    * Prepares a config string value for export.
    *
-   * @param $value
-   *   The source string value.
-   * @param $key
+   * @param mixed $value
+   *   The source configuration value.
+   * @param string $key
    *   The key in the configuration at which the string is found.
+   * @param array $export
+   *   The result array of items to populate.
    *
    * @return array
    *   Array of config string data ready for export.
    */
-  protected function prepareForExport($value, $key, &$export = []) {
+  protected function doExport($value, $key = NULL, array &$export = []) {
     if (is_array($value)) {
       foreach ($value as $nested_key => $nested_value) {
-        $this->prepareForExport($nested_value, $key . '.' . $nested_key, $export);
+        $parent_key = implode('.', array_filter([$key, $nested_key]));
+        $this->doExport($nested_value, $parent_key, $export);
       }
     }
     else {
@@ -338,4 +315,5 @@ class ConfigService {
 
     return $export;
   }
+
 }

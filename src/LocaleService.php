@@ -26,7 +26,7 @@ class LocaleService {
    *   [
    *     'include_translations' => 'Whether or not to include already translated
    *       values',
-   *   ]
+   *   ].
    *
    * @return array
    *   List of UI strings:
@@ -36,7 +36,7 @@ class LocaleService {
    *       translator',
    *     'context' => 'Context for the string.',
    *     'url' => 'The url at which the string is found.',
-   *   ]
+   *   ].
    */
   public function export(string $langcode, array $options = []) {
     // Merge in default options.
@@ -79,7 +79,7 @@ class LocaleService {
    *     'translation' => 'The translated value of the string.',
    *     'context' => 'Context for the string.',
    *     'url' => 'The url at which the string is found.',
-   *   ]
+   *   ].
    */
   public function import(string $langcode, array $translations) {
     foreach ($translations as $translation) {
