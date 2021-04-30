@@ -1,15 +1,35 @@
 services:
+  # Channel specific logger derived from the base service.
+  logger.channel.argo:
+    parent: logger.channel_base
+    arguments: ['argo']
   argo.service:
     class: Drupal\argo\ArgoService
-    arguments: ['@entity.repository',
-                '@entity_type.manager',
-                '@entity_field.manager',
-                '@argo.export',
-                '@argo.translate',
-                '@content_moderation.moderation_information',
-                '@database']
-  argo.export:
+    arguments:
+      - '@argo.config_service'
+      - '@argo.content_export'
+      - '@argo.content_translate'
+      - '@argo.locale_service'
+      - '@entity.repository'
+      - '@entity_type.manager'
+      - '@entity_field.manager'
+      - '@content_moderation.moderation_information'
+      - '@database'
+  argo.config_service:
+    class: Drupal\argo\ConfigService
+    arguments:
+      - '@config.factory'
+      - '@config.storage'
+      - '@config.manager'
+      - '@config.typed'
+      - '@language_manager'
+  argo.content_export:
     class: Drupal\argo\ContentEntityExport
-  argo.translate:
+  argo.content_translate:
     class: Drupal\argo\ContentEntityTranslate
-    arguments: ['@typed_data.data_fetcher']
+    arguments:
+      - '@typed_data.data_fetcher'
+  argo.locale_service:
+    class: Drupal\argo\LocaleService
+    arguments:
+      - '@locale.storage'

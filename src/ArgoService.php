@@ -16,7 +16,6 @@ use Drupal\Core\Entity\RevisionLogInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Language\Language;
-use Drupal\paragraphs\Entity\Paragraph;
 use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
 
@@ -24,6 +23,34 @@ use Drupal\user\EntityOwnerInterface;
  * Interacts with Argo.
  */
 class ArgoService implements ArgoServiceInterface {
+
+  /**
+   * Configuration (entity) string export/import service.
+   *
+   * @var \Drupal\argo\ConfigService
+   */
+  private $configService;
+
+  /**
+   * Content exporter.
+   *
+   * @var ContentEntityExport
+   */
+  private $contentEntityExport;
+
+  /**
+   * Content translation service.
+   *
+   * @var ContentEntityTranslate
+   */
+  private $contentEntityTranslate;
+
+  /**
+   * UI string translation service.
+   *
+   * @var \Drupal\argo\LocaleService
+   */
+  private $localeService;
 
   /**
    * The core entity repository service.
@@ -47,20 +74,6 @@ class ArgoService implements ArgoServiceInterface {
   private $entityFieldManager;
 
   /**
-   * Exporter.
-   *
-   * @var ContentEntityExport
-   */
-  private $contentEntityExport;
-
-  /**
-   * Translate.
-   *
-   * @var ContentEntityTranslate
-   */
-  private $contentEntityTranslate;
-
-  /**
    * Moderation info.
    *
    * @var \Drupal\content_moderation\ModerationInformationInterface
@@ -77,80 +90,73 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * The service constructor.
    *
+   * @param ConfigService $configService
+   *   Config exporter/importer service.
+   * @param ContentEntityExport $contentEntityExport
+   *   Exporter.
+   * @param ContentEntityTranslate $contentEntityTranslate
+   *   Content entity translation service.
+   * @param \Drupal\argo\LocaleService $localeService
+   *   UI string translation service.
    * @param \Drupal\Core\Entity\EntityRepositoryInterface $entityRepository
    *   The core entity repository service.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   The core entity type manager service.
    * @param \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager
    *   The core entity field manager service.
-   * @param ContentEntityExport $contentEntityExport
-   *   Exporter.
-   * @param ContentEntityTranslate $contentEntityTranslate
-   *   Content entity translation service.
    * @param \Drupal\content_moderation\ModerationInformationInterface $moderationInfo
    *   Moderation info.
    * @param \Drupal\Core\Database\Connection $connection
    *   DB connection.
    */
   public function __construct(
+    ConfigService $configService,
+    ContentEntityExport $contentEntityExport,
+    ContentEntityTranslate $contentEntityTranslate,
+    LocaleService $localeService,
     EntityRepositoryInterface $entityRepository,
     EntityTypeManagerInterface $entityTypeManager,
     EntityFieldManagerInterface $entityFieldManager,
-    ContentEntityExport $contentEntityExport,
-    ContentEntityTranslate $contentEntityTranslate,
     ModerationInformationInterface $moderationInfo,
     Connection $connection
   ) {
     $this->entityRepository = $entityRepository;
-    $this->entityTypeManager = $entityTypeManager;
-    $this->entityFieldManager = $entityFieldManager;
+    $this->configService = $configService;
     $this->contentEntityExport = $contentEntityExport;
     $this->contentEntityTranslate = $contentEntityTranslate;
+    $this->localeService = $localeService;
+    $this->entityTypeManager = $entityTypeManager;
+    $this->entityFieldManager = $entityFieldManager;
     $this->moderationInfo = $moderationInfo;
     $this->connection = $connection;
   }
 
   /**
-   * Export.
-   *
-   * @param string $entityType
-   *   Entity type ID.
-   * @param string $uuid
-   *   Entity UUID.
-   * @param array $traversableEntityTypes
-   *   Traversable entity types.
-   * @param array $traversableContentTypes
-   *   Traversable content types.
-   * @param int|null $revisionId
-   *   (optional) Entity revision ID.
-   *
-   * @return array
-   *   Export.
-   *
-   * @throws \Drupal\Core\TypedData\Exception\MissingDataException
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   * {@inheritdoc}
    */
-  public function export(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL) {
+  public function exportConfig(string $langcode, array $options = []) {
+    return $this->configService->export($langcode, $options);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function translateConfig(string $langcode, array $translations) {
+    $this->configService->import($langcode, $translations);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL) {
     $entity = $this->loadEntity($entityType, $uuid, $revisionId);
     return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
   }
 
   /**
-   * Translate.
-   *
-   * @param string $entityType
-   *   Entity type.
-   * @param string $uuid
-   *   UUID.
-   * @param array $translations
-   *   Translations.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   * @throws \Drupal\Core\Entity\EntityStorageException
+   * {@inheritdoc}
    */
-  public function translate(string $entityType, string $uuid, array $translations) {
+  public function translateContent(string $entityType, string $uuid, array $translations) {
     $rootTranslation = $translations['root'];
     $childTranslations = $translations['children'];
 
@@ -580,6 +586,20 @@ class ArgoService implements ArgoServiceInterface {
       'uuid' => $entity->uuid(),
       'revisionId' => $this->contentEntityExport->getRevisionId($entity)
     ];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function exportLocale(string $langcode, array $options = []) {
+    return $this->localeService->export($langcode, $options);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function translateLocale(string $langcode, array $translations) {
+    $this->localeService->import($langcode, $translations);
   }
 
 }

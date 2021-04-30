@@ -3,7 +3,9 @@
 namespace Drupal\argo\Controller;
 
 use Drupal\argo\ArgoServiceInterface;
+use Drupal\Component\Serialization\Json;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Logger\LoggerChannelInterface;
 use Psr\Log\LogLevel;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,13 +25,23 @@ class ArgoController extends ControllerBase {
   private $argoService;
 
   /**
+   * Logger service.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannelInterface
+   */
+  private $logger;
+
+  /**
    * Argo constructor.
    *
    * @param \Drupal\argo\ArgoServiceInterface $argoService
    *   Argo service.
+   * @param \Drupal\Core\Logger\LoggerChannelInterface $logger
+   *   Argo logger.
    */
-  public function __construct(ArgoServiceInterface $argoService) {
+  public function __construct(ArgoServiceInterface $argoService, LoggerChannelInterface $logger) {
     $this->argoService = $argoService;
+    $this->logger = $logger;
   }
 
   /**
@@ -37,8 +49,53 @@ class ArgoController extends ControllerBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('argo.service')
+      $container->get('argo.service'),
+      $container->get('logger.channel.argo')
     );
+  }
+
+  /**
+   * Exports config strings for translation.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function exportConfig(Request $request) {
+    $langcode = $request->get('langcode');
+    $include_translations = intval($request->query->get('include-translations', FALSE));
+    $export = $this->argoService->exportConfig($langcode, [
+      'include_translations' => $include_translations,
+    ]);
+
+    return new JsonResponse($export);
+  }
+
+  /**
+   * Translates config strings into Drupal.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function translateConfig(Request $request) {
+    $langcode = $request->get('langcode');
+    $translations = Json::decode($request->getContent());
+
+    try {
+      $this->argoService->translateConfig($langcode, $translations);
+    } catch (\Exception $e) {
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'message' => $e->__toString(),
+      ],
+        Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
+    return new JsonResponse();
   }
 
   /**
@@ -65,7 +122,7 @@ class ArgoController extends ControllerBase {
         $publishedOnlyBundles, $langcode);
     }
     catch (\Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
       ],
@@ -89,7 +146,7 @@ class ArgoController extends ControllerBase {
     $traversableEntityTypes = $request->get('entity-types');
     $traversableContentTypes = $request->get('content-types');
 
-    $export = $this->argoService->export($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
+    $export = $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
 
     return new JsonResponse($export);
   }
@@ -110,7 +167,7 @@ class ArgoController extends ControllerBase {
     $traversableContentTypes = $request->get('content-types');
     $revisionId = $request->get('revisionId');
 
-    $export = $this->argoService->export($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
+    $export = $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
 
     return new JsonResponse($export);
   }
@@ -133,10 +190,10 @@ class ArgoController extends ControllerBase {
     $translation = json_decode($request->getContent(), TRUE);
 
     try {
-      $this->argoService->translate($entityType, $uuid, $translation);
+      $this->argoService->translateContent($entityType, $uuid, $translation);
     }
     catch (\Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
       ],
@@ -180,7 +237,7 @@ class ArgoController extends ControllerBase {
       $this->argoService->resetDeletionLog($deleted);
     }
     catch (\Exception $e) {
-      \Drupal::logger('argo')->log(LogLevel::ERROR, $e->__toString());
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
       ],
@@ -208,6 +265,50 @@ class ArgoController extends ControllerBase {
     $entityInfo = $this->argoService->entityInfo($type, $id);
 
     return new JsonResponse($entityInfo);
+  }
+
+  /**
+   * Exports UI strings for translation.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function exportLocale(Request $request) {
+    $langcode = $request->get('langcode');
+    $include_translations = intval($request->query->get('include-translations', FALSE));
+    $export = $this->argoService->exportLocale($langcode, [
+      'include_translations' => $include_translations,
+    ]);
+
+    return new JsonResponse($export);
+  }
+
+  /**
+   * Translates UI strings into Drupal.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function translateLocale(Request $request) {
+    $langcode = $request->get('langcode');
+    $translations = Json::decode($request->getContent());
+
+    try {
+      $this->argoService->translateLocale($langcode, $translations);
+    } catch (\Exception $e) {
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'message' => $e->__toString(),
+      ],
+        Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
+    return new JsonResponse();
   }
 
 }
