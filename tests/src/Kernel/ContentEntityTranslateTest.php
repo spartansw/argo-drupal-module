@@ -108,7 +108,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
     $export = $this->contentEntityExport->export($node, $traversableEntityTypes, $traversableContentTypes);
     $export['root']['items'][1]['value'] = $expectedTranslation;
 
-    $this->assertEqual($export['items'][2]['path'], 'field_meta_tags.0.value.key1');
+    $this->assertEquals($export['items'][2]['path'], 'field_meta_tags.0.value.key1');
     $export['root']['items'][2]['value'] = $expectedTranslation;
     $export['root']['items'][3]['value'] = $expectedTranslation;
 
@@ -122,16 +122,16 @@ class ContentEntityTranslateTest extends KernelTestBase {
       ->load($node->id());
     $translatedNode = $updatedSrcNode->getTranslation($targetLangcode);
 
-    $this->assertEqual($translatedNode->field_test->value, $expectedTranslation);
-    $this->assertEqual($updatedSrcNode->field_test->value, $srcValue);
+    $this->assertEquals($translatedNode->field_test->value, $expectedTranslation);
+    $this->assertEquals($updatedSrcNode->field_test->value, $srcValue);
 
     $translatedMetatag = unserialize($translatedNode->field_meta_tags->value);
-    $this->assertEqual($translatedMetatag['key1'], $expectedTranslation);
-    $this->assertEqual($translatedMetatag['key2'], $expectedTranslation);
+    $this->assertEquals($translatedMetatag['key1'], $expectedTranslation);
+    $this->assertEquals($translatedMetatag['key2'], $expectedTranslation);
 
     $this->contentEntityTranslate->translate($node, $targetLangcode, $export);
 
-    $this->assertEqual();
+    $this->assertEquals();
   }
 
   /**
@@ -170,7 +170,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
       ->load($node->id());
     $translatedNode = $updatedSrcNode->getTranslation($targetLangcode);
 
-    $this->assertEqual($translatedNode->field_map->getValue()[0], [
+    $this->assertEquals($translatedNode->field_map->getValue()[0], [
       'uri' => 'testUriX',
       'title' => 'testTitleX',
       'options' => [
@@ -191,14 +191,14 @@ class ContentEntityTranslateTest extends KernelTestBase {
       ],
     ]);
 
-    $this->assertEqual($result, [
+    $this->assertEquals($result, [
       'key' => 'value',
       'nestedKey.nested' => 'nestedValue',
     ]);
 
     $roundtrip = $this->contentEntityTranslate->buildProp($result);
 
-    $this->assertEqual($roundtrip, [
+    $this->assertEquals($roundtrip, [
       'key' => 'value',
       'nestedKey' => [
         'nested' => 'nestedValue',
@@ -225,7 +225,7 @@ class ContentEntityTranslateTest extends KernelTestBase {
       $export = $this->contentEntityExport->export($node, $traversableEntityTypes, $traversableContentTypes);
 
       if (isset($export['root']['items'][1])) {
-        $this->assertEqual($export['root']['items'][1]['value'], 'test value');
+        $this->assertEquals($export['root']['items'][1]['value'], 'test value');
       }
 
       $targetLangcode = $this->german->id();
