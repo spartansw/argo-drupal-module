@@ -3,6 +3,7 @@
 namespace Drupal\argo;
 
 use Drupal\content_moderation\ModerationInformationInterface;
+use Drupal\content_translation\ContentTranslationManagerInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Database;
 use Drupal\Core\Entity\ContentEntityInterface;
@@ -81,6 +82,13 @@ class ArgoService implements ArgoServiceInterface {
   private $moderationInfo;
 
   /**
+   * Core content translation manager.
+   *
+   * @var \Drupal\content_translation\ContentTranslationManagerInterface
+   */
+  private $contentTranslationManager;
+
+  /**
    * The database connection.
    *
    * @var \Drupal\Core\Database\Connection
@@ -106,6 +114,8 @@ class ArgoService implements ArgoServiceInterface {
    *   The core entity field manager service.
    * @param \Drupal\content_moderation\ModerationInformationInterface $moderationInfo
    *   Moderation info.
+   * @param \Drupal\content_translation\ContentTranslationManagerInterface $contentTranslationManager
+   *   Core content translation manager.
    * @param \Drupal\Core\Database\Connection $connection
    *   DB connection.
    */
@@ -118,6 +128,7 @@ class ArgoService implements ArgoServiceInterface {
     EntityTypeManagerInterface $entityTypeManager,
     EntityFieldManagerInterface $entityFieldManager,
     ModerationInformationInterface $moderationInfo,
+    ContentTranslationManagerInterface $contentTranslationManager,
     Connection $connection
   ) {
     $this->entityRepository = $entityRepository;
@@ -128,6 +139,7 @@ class ArgoService implements ArgoServiceInterface {
     $this->entityTypeManager = $entityTypeManager;
     $this->entityFieldManager = $entityFieldManager;
     $this->moderationInfo = $moderationInfo;
+    $this->contentTranslationManager = $contentTranslationManager;
     $this->connection = $connection;
   }
 
@@ -216,9 +228,14 @@ class ArgoService implements ArgoServiceInterface {
     // Translate references.
     $this->recurseReferences($target_entity, $langcode, $translationsById, $visitedUuids);
 
-    // Ensure the correct translation source property is set.
-    $translated->set('content_translation_source',
-      $source_entity->language()->getId());
+    // Prepare the translation and ensure various information is set:
+    // - The correct translation source property that points to the source
+    //   entity langcode.
+    // - The content created time.
+    // See: \Drupal\content_translation\Controller\ContentTranslationController::prepareTranslation.
+    $metadata = $this->contentTranslationManager->getTranslationMetadata($translated);
+    $metadata->setCreatedTime(\Drupal::time()->getRequestTime());
+    $metadata->setSource($source_entity->language()->getId());
 
     if ($translated instanceof EntityPublishedInterface) {
       $translated->setUnpublished();
@@ -387,7 +404,7 @@ class ArgoService implements ArgoServiceInterface {
           ->loadRevision($latest_translation_affected_revision);
       }
       // Otherwise, return the most recent active revision as determined by
-      // Drupal as a list resort.
+      // Drupal as a last resort.
       else {
         $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
       }
