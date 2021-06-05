@@ -216,6 +216,10 @@ class ArgoService implements ArgoServiceInterface {
     // Translate references.
     $this->recurseReferences($target_entity, $langcode, $translationsById, $visitedUuids);
 
+    // Ensure the correct translation source property is set.
+    $translated->set('content_translation_source',
+      $source_entity->language()->getId());
+
     if ($translated instanceof EntityPublishedInterface) {
       $translated->setUnpublished();
     }
@@ -371,8 +375,22 @@ class ArgoService implements ArgoServiceInterface {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
       $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);
+
       // Find the latest translation affected entity (e.g. draft revision).
-      $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
+      // If it exists, then return that revision of the entity.
+      $latest_translation_affected_revision = $this->entityTypeManager->getStorage($entityType)
+        ->getLatestTranslationAffectedRevisionId($entity->id(), $entity->language()->getId());
+
+      if ($latest_translation_affected_revision !== NULL) {
+        $entity = $this->entityTypeManager
+          ->getStorage($entityType)
+          ->loadRevision($latest_translation_affected_revision);
+      }
+      // Otherwise, return the most recent active revision as determined by
+      // Drupal as a list resort.
+      else {
+        $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
+      }
     }
 
     return $entity;
