@@ -14,6 +14,7 @@ services:
       - '@entity_type.manager'
       - '@entity_field.manager'
       - '@content_moderation.moderation_information'
+      - '@content_translation.manager'
       - '@database'
   argo.config_service:
     class: Drupal\argo\ConfigService
