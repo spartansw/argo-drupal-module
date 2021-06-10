@@ -174,8 +174,7 @@ class ArgoService implements ArgoServiceInterface {
 
     $langcode = $rootTranslation['targetLangcode'];
     $revisionId = $rootTranslation['revisionId'] ?? NULL;
-    $entity = $this->loadEntity($entityType, $uuid, $revisionId);
-    $target_entity = $this->loadEntity($entityType, $uuid);
+    $target_entity = $this->loadEntity($entityType, $uuid, $revisionId);
 
     $translationsById = [$rootTranslation['entityId'] => $rootTranslation];
     foreach ($childTranslations as $childTranslation) {
