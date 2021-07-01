@@ -161,7 +161,7 @@ class ArgoService implements ArgoServiceInterface {
    * {@inheritdoc}
    */
   public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL) {
-    $entity = $this->loadEntity($entityType, $uuid, $revisionId);
+    $entity = $this->loadEntity($entityType, $uuid, TRUE);
     return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
   }
 
@@ -173,8 +173,7 @@ class ArgoService implements ArgoServiceInterface {
     $childTranslations = $translations['children'];
 
     $langcode = $rootTranslation['targetLangcode'];
-    $revisionId = $rootTranslation['revisionId'] ?? NULL;
-    $target_entity = $this->loadEntity($entityType, $uuid, $revisionId);
+    $target_entity = $this->loadEntity($entityType, $uuid);
 
     $translationsById = [$rootTranslation['entityId'] => $rootTranslation];
     foreach ($childTranslations as $childTranslation) {
@@ -365,6 +364,9 @@ class ArgoService implements ArgoServiceInterface {
    *   Entity type ID.
    * @param string $uuid
    *   Entity UUID.
+   * @param bool $latestTranslationAffectedRevision
+   *   Whether to retrieve the most recent revision_translation_affected
+   *   revision of the entity.
    * @param int|null $revisionId
    *   (optional) Entity revision ID.
    *
@@ -375,7 +377,7 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
-  private function loadEntity(string $entityType, string $uuid, int $revisionId = NULL) {
+  private function loadEntity(string $entityType, string $uuid, bool $latestTranslationAffectedRevision = FALSE, int $revisionId = NULL) {
     // Unfortunately loading an entity by its uuid will only load the latest
     // "published" revision which could be different from the original entity.
     // Until Drupal core supports loading entity revisions by a uuid, we try and
@@ -387,7 +389,11 @@ class ArgoService implements ArgoServiceInterface {
         ->getStorage($entityType)
         ->loadRevision($revisionId);
     }
-    else {
+    // If specified, then return the most recent revision_translation_affected
+    // revision. This will be the revision that contains the most recent
+    // intentional edit of the entity. This is the revision of the entity that
+    // we want to use as the source of the content to translate.
+    elseif ($latestTranslationAffectedRevision === TRUE) {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
       $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);
@@ -402,11 +408,18 @@ class ArgoService implements ArgoServiceInterface {
           ->getStorage($entityType)
           ->loadRevision($latest_translation_affected_revision);
       }
-      // Otherwise, return the most recent active revision as determined by
-      // Drupal as a last resort.
-      else {
-        $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
-      }
+    }
+    // Otherwise, return the most recent active revision as determined by
+    // Drupal as the default option. This is the revision that we want to
+    // create the newest revision from. The source entity may not be marked as
+    // revision_translation_affected at this point, but this revision will
+    // contain the relationship to all the existing translations. We need to
+    // use this revision to add the intended translation, otherwise the latest
+    // saved revision will not appear to have all previous translations and the
+    // admin UX will be incorrect.
+    else {
+      $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);
+      $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
     }
 
     return $entity;
