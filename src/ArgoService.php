@@ -161,7 +161,12 @@ class ArgoService implements ArgoServiceInterface {
    * {@inheritdoc}
    */
   public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL) {
-    $entity = $this->loadEntity($entityType, $uuid, TRUE);
+    if (is_null($revisionId)) {
+      $entity = $this->loadEntity($entityType, $uuid, TRUE);
+    }
+    else {
+      $entity = $this->loadEntity($entityType, $uuid, FALSE, $revisionId);
+    }
     return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
   }
 
