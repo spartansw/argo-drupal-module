@@ -167,6 +167,9 @@ class ArgoService implements ArgoServiceInterface {
     else {
       $entity = $this->loadEntity($entityType, $uuid, FALSE, $revisionId);
     }
+    if (is_null($entity)) {
+      throw new \Exception("Entity not found.");
+    }
     return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
   }
 
@@ -179,6 +182,9 @@ class ArgoService implements ArgoServiceInterface {
 
     $langcode = $rootTranslation['targetLangcode'];
     $target_entity = $this->loadEntity($entityType, $uuid);
+    if (is_null($target_entity)) {
+      throw new \Exception("Entity not found.");
+    }
 
     $translationsById = [$rootTranslation['entityId'] => $rootTranslation];
     foreach ($childTranslations as $childTranslation) {
@@ -376,7 +382,7 @@ class ArgoService implements ArgoServiceInterface {
    *   (optional) Entity revision ID.
    *
    * @return \Drupal\Core\Entity\ContentEntityInterface
-   *   The loaded entity.
+   *   The loaded entity, or NULL if it can't be found.
    *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
@@ -403,6 +409,10 @@ class ArgoService implements ArgoServiceInterface {
       // entities might not support revisions.
       $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);
 
+      if (is_null($entity)) {
+        return $entity;
+      }
+
       // Find the latest translation affected entity (e.g. draft revision).
       // If it exists, then return that revision of the entity.
       $latest_translation_affected_revision = $this->entityTypeManager->getStorage($entityType)
@@ -424,6 +434,9 @@ class ArgoService implements ArgoServiceInterface {
     // admin UX will be incorrect.
     else {
       $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);
+      if (is_null($entity)) {
+        return NULL;
+      }
       $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
     }
 
