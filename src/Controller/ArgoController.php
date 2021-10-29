@@ -6,6 +6,7 @@ use Drupal\argo\ArgoServiceInterface;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\argo\Exception\NotFoundException;
 use Psr\Log\LogLevel;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -88,7 +89,8 @@ class ArgoController extends ControllerBase {
 
     try {
       $this->argoService->translateConfig($langcode, $translations);
-    } catch (\Exception $e) {
+    }
+    catch (\Exception $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),
@@ -191,6 +193,12 @@ class ArgoController extends ControllerBase {
 
     try {
       $this->argoService->translateContent($entityType, $uuid, $translation);
+    }
+    catch (NotFoundException $e) {
+      return new JsonResponse([
+        'message' => $e->getMessage(),
+      ],
+        Response::HTTP_NOT_FOUND);
     }
     catch (\Exception $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
@@ -301,7 +309,8 @@ class ArgoController extends ControllerBase {
 
     try {
       $this->argoService->translateLocale($langcode, $translations);
-    } catch (\Exception $e) {
+    }
+    catch (\Exception $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'message' => $e->__toString(),

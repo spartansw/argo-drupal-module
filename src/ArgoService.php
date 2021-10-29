@@ -19,6 +19,7 @@ use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Language\Language;
 use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
+use Drupal\argo\Exception\NotFoundException;
 
 /**
  * Interacts with Argo.
@@ -168,7 +169,7 @@ class ArgoService implements ArgoServiceInterface {
       $entity = $this->loadEntity($entityType, $uuid, FALSE, $revisionId);
     }
     if (is_null($entity)) {
-      throw new \Exception("Entity not found.");
+      throw new NotFoundException("Entity not found.");
     }
     return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
   }
@@ -183,7 +184,7 @@ class ArgoService implements ArgoServiceInterface {
     $langcode = $rootTranslation['targetLangcode'];
     $target_entity = $this->loadEntity($entityType, $uuid);
     if (is_null($target_entity)) {
-      throw new \Exception("Entity not found.");
+      throw new NotFoundException("Entity not found.");
     }
 
     $translationsById = [$rootTranslation['entityId'] => $rootTranslation];
