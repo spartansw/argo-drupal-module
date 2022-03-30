@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\argo\Exception\NotFoundException;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ConfigManagerInterface;
@@ -178,6 +179,7 @@ class ConfigService {
   public function import(string $langcode, array $translations) {
     $configs = [];
 
+    $not_found_ids = [];
     foreach ($translations as $translation) {
       $config_id = $translation['config_id'];
       $key = $translation['key'];
@@ -193,6 +195,10 @@ class ConfigService {
         if ($this->isWebformConfig($config_id)) {
           /** @var \Drupal\webform\WebformInterface $webform */
           $webform = $this->configManager->loadConfigEntityByName($config_id);
+          if (!isset($webform)) {
+            $not_found_ids[] = $config_id;
+            continue;
+          }
           /** @var \Drupal\webform\WebformTranslationManagerInterface $webform_translation_manager */
           $webform_translation_manager = \Drupal::service('webform.translation_manager');
           $configs[$config_id]->set('elements', $webform_translation_manager->getTranslationElements($webform, $langcode));
@@ -200,6 +206,13 @@ class ConfigService {
       }
       $config = $configs[$config_id];
       $config->set($key, $translation);
+    }
+    if (!empty($not_found_ids)) {
+      $message = 'Webform not found for config_ids:';
+      foreach ($not_found_ids as $config_id) {
+        $message .= ' ' . $config_id;
+      }
+      throw new NotFoundException($message);
     }
 
     // Bulk save all the changes.

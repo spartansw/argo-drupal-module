@@ -90,6 +90,12 @@ class ArgoController extends ControllerBase {
     try {
       $this->argoService->translateConfig($langcode, $translations);
     }
+    catch (NotFoundException $e) {
+      return new JsonResponse([
+        'message' => $e->getMessage(),
+      ],
+        Response::HTTP_NOT_FOUND);
+    }
     catch (\Exception $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
