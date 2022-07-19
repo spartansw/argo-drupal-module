@@ -164,12 +164,22 @@ class ArgoService implements ArgoServiceInterface {
   public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL) {
     if (is_null($revisionId)) {
       $entity = $this->loadEntity($entityType, $uuid, TRUE);
+      if (is_null($entity)) {
+        throw new NotFoundException(sprintf("Root %s with UUID %s does not exist", $entityType, $uuid));
+      }
     }
     else {
       $entity = $this->loadEntity($entityType, $uuid, FALSE, $revisionId);
-    }
-    if (is_null($entity)) {
-      throw new NotFoundException("Entity not found.");
+      if (is_null($entity)) {
+        $entity = $this->loadEntity($entityType, $uuid, TRUE);
+        if (is_null($entity)) {
+          throw new NotFoundException(sprintf("Root %s with UUID %s does not exist", $entityType, $uuid));
+        }
+        else {
+          throw new NotFoundException(sprintf("Revision ID %d does not exist for root %s with UUID %s (entity ID %s)",
+            $revisionId, $entityType, $uuid, $entity->id()));
+        }
+      }
     }
     return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
   }

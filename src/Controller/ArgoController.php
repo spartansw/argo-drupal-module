@@ -153,10 +153,11 @@ class ArgoController extends ControllerBase {
     $uuid = $request->get('uuid');
     $traversableEntityTypes = $request->get('entity-types');
     $traversableContentTypes = $request->get('content-types');
+    $forceErrorCode = intval($request->query->get('force_error_code'));
 
-    $export = $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
-
-    return new JsonResponse($export);
+    return $this->handleExport(function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId) {
+      return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
+    }, $forceErrorCode);
   }
 
   /**
@@ -174,10 +175,38 @@ class ArgoController extends ControllerBase {
     $traversableEntityTypes = $request->get('entity-types');
     $traversableContentTypes = $request->get('content-types');
     $revisionId = $request->get('revisionId');
+    $forceErrorCode = intval($request->query->get('force_error_code'));
 
-    $export = $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
+    return $this->handleExport(function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId) {
+      return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
+    }, $forceErrorCode);
+  }
 
-    return new JsonResponse($export);
+  private function handleExport($exportFunc, $forceErrorCode) {
+    try {
+      $export = $exportFunc();
+      return new JsonResponse($export);
+    } catch (NotFoundException $e) {
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'error' => [
+          'code' => Response::HTTP_NOT_FOUND,
+          'message' => $e->getMessage(),
+          'errors' => []
+        ]
+      ],
+        $forceErrorCode != 0 ? $forceErrorCode : Response::HTTP_NOT_FOUND);
+    } catch (\Exception $e) {
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'error' => [
+          'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
+          'message' => $e->__toString(),
+          'errors' => []
+        ]
+      ],
+        $forceErrorCode != 0 ? $forceErrorCode : Response::HTTP_INTERNAL_SERVER_ERROR);
+    }
   }
 
   /**
