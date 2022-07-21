@@ -3,6 +3,7 @@
 namespace Drupal\argo;
 
 use Drupal\argo\Exception\FieldNotFoundException;
+use Drupal\argo\Exception\InvalidLanguageException;
 use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\content_translation\ContentTranslationManagerInterface;
 use Drupal\Core\Database\Connection;
@@ -341,6 +342,9 @@ class ArgoService implements ArgoServiceInterface {
                 } catch (FieldNotFoundException $e) {
                   throw new FieldNotFoundException(sprintf('%s Field -> Item %d %s %s: %s', $fieldLabel,
                     $delta, $entityTypeLabel, $uuid, $e->getMessage()), 0, $e);
+                } catch (InvalidLanguageException | \InvalidArgumentException $e) {
+                  throw new InvalidLanguageException(sprintf('%s Field -> Item %d %s %s: %s', $fieldLabel,
+                    $delta, $entityTypeLabel, $uuid, $e->getMessage()), 0, $e);
                 }
               }
             }
@@ -667,6 +671,9 @@ class ArgoService implements ArgoServiceInterface {
       ->getStorage($type)
       ->load($id);
 
+    if (!isset($entity)) {
+      throw new NotFoundException(sprintf('%s with ID %s not found', $type, $id));
+    }
     return [
       'uuid' => $entity->uuid(),
       'revisionId' => $this->contentEntityExport->getRevisionId($entity)

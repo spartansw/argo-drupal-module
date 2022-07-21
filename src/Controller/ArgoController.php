@@ -4,6 +4,7 @@ namespace Drupal\argo\Controller;
 
 use Drupal\argo\ArgoServiceInterface;
 use Drupal\argo\Exception\FieldNotFoundException;
+use Drupal\argo\Exception\InvalidLanguageException;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -68,11 +69,12 @@ class ArgoController extends ControllerBase {
   public function exportConfig(Request $request) {
     $langcode = $request->get('langcode');
     $include_translations = intval($request->query->get('include-translations', FALSE));
-    $export = $this->argoService->exportConfig($langcode, [
-      'include_translations' => $include_translations,
-    ]);
 
-    return new JsonResponse($export);
+    return $this->handleErrors($request, function () use ($langcode, $include_translations) {
+      return $this->argoService->exportConfig($langcode, [
+        'include_translations' => $include_translations,
+      ]);
+    });
   }
 
   /**
@@ -88,23 +90,10 @@ class ArgoController extends ControllerBase {
     $langcode = $request->get('langcode');
     $translations = Json::decode($request->getContent());
 
-    try {
+    return $this->handleErrors($request, function () use ($langcode, $translations) {
       $this->argoService->translateConfig($langcode, $translations);
-    }
-    catch (NotFoundException $e) {
-      return new JsonResponse([
-        'message' => $e->getMessage(),
-      ],
-        Response::HTTP_NOT_FOUND);
-    }
-    catch (\Exception $e) {
-      $this->logger->log(LogLevel::ERROR, $e->__toString());
-      return new JsonResponse([
-        'message' => $e->__toString(),
-      ],
-        Response::HTTP_INTERNAL_SERVER_ERROR);
-    }
-    return new JsonResponse();
+      return NULL;
+    });
   }
 
   /**
@@ -126,18 +115,10 @@ class ArgoController extends ControllerBase {
     $limit = intval($request->query->get('limit'));
     $offset = intval($request->query->get('offset'));
 
-    try {
-      $updated = $this->argoService->getUpdated($entityType, $lastUpdate, $limit, $offset,
+    return $this->handleErrors($request, function () use ($entityType, $lastUpdate, $limit, $offset) {
+      return $this->argoService->getUpdated($entityType, $lastUpdate, $limit, $offset,
         $publishedOnlyBundles, $langcode);
-    }
-    catch (\Exception $e) {
-      $this->logger->log(LogLevel::ERROR, $e->__toString());
-      return new JsonResponse([
-        'message' => $e->__toString(),
-      ],
-        Response::HTTP_INTERNAL_SERVER_ERROR);
-    }
-    return new JsonResponse($updated);
+    });
   }
 
   /**
@@ -154,11 +135,10 @@ class ArgoController extends ControllerBase {
     $uuid = $request->get('uuid');
     $traversableEntityTypes = $request->get('entity-types');
     $traversableContentTypes = $request->get('content-types');
-    $forceErrorCode = intval($request->query->get('force_error_code'));
 
-    return $this->handleExport(function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId) {
+    return $this->handleErrors($request, function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId) {
       return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
-    }, $forceErrorCode);
+    });
   }
 
   /**
@@ -176,38 +156,10 @@ class ArgoController extends ControllerBase {
     $traversableEntityTypes = $request->get('entity-types');
     $traversableContentTypes = $request->get('content-types');
     $revisionId = $request->get('revisionId');
-    $forceErrorCode = intval($request->query->get('force_error_code'));
 
-    return $this->handleExport(function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId) {
+    return $this->handleErrors($request, function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId) {
       return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
-    }, $forceErrorCode);
-  }
-
-  private function handleExport($exportFunc, $forceErrorCode) {
-    try {
-      $export = $exportFunc();
-      return new JsonResponse($export);
-    } catch (NotFoundException $e) {
-      $this->logger->log(LogLevel::ERROR, $e->__toString());
-      return new JsonResponse([
-        'error' => [
-          'code' => Response::HTTP_NOT_FOUND,
-          'message' => $e->getMessage(),
-          'errors' => []
-        ]
-      ],
-        $forceErrorCode != 0 ? $forceErrorCode : Response::HTTP_NOT_FOUND);
-    } catch (\Exception $e) {
-      $this->logger->log(LogLevel::ERROR, $e->__toString());
-      return new JsonResponse([
-        'error' => [
-          'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
-          'message' => $e->__toString(),
-          'errors' => []
-        ]
-      ],
-        $forceErrorCode != 0 ? $forceErrorCode : Response::HTTP_INTERNAL_SERVER_ERROR);
-    }
+    });
   }
 
   /**
@@ -226,18 +178,78 @@ class ArgoController extends ControllerBase {
     $entityType = $request->get('type');
     $uuid = $request->get('uuid');
     $translation = json_decode($request->getContent(), TRUE);
-    $forceErrorCode = intval($request->query->get('force_error_code'));
 
-    return $this->handleImport(function () use ($entityType, $uuid, $translation) {
+    return $this->handleErrors($request, function () use ($entityType, $uuid, $translation) {
       $this->argoService->translateContent($entityType, $uuid, $translation);
-    }, $forceErrorCode);
+      return NULL;
+    });
   }
 
-  private function handleImport($importFunc, $forceErrorCode) {
+  /**
+   * Fetch deleted entity IDs.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function getDeletionLog(Request $request) {
+    return $this->handleErrors($request, function () {
+      return $this->argoService->getDeletionLog();
+    });
+  }
+
+  /**
+   * Reset deleted entity log.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\Response
+   *   The response object.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function resetDeletionLog(Request $request) {
+    return $this->handleErrors($request, function () use ($request) {
+      $deleted = json_decode($request->getContent(), TRUE)['deleted'];
+      $this->argoService->resetDeletionLog($deleted);
+      return NULL;
+    });
+  }
+
+  /**
+   * Returns the uuid for an entity.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function entityUuid(Request $request) {
+    $type = $request->get('type');
+    $id = $request->get('id');
+
+    return $this->handleErrors($request, function () use ($type, $id) {
+      return $this->argoService->entityInfo($type, $id);
+    });
+  }
+
+  private function handleErrors($request, $func) {
+    $forceErrorCode = intval($request->query->get('force_error_code'));
+
     try {
-      $importFunc();
-      return new JsonResponse();
-    } catch (NotFoundException | FieldNotFoundException $e) {
+      $result = $func();
+    } catch (NotFoundException | FieldNotFoundException | InvalidLanguageException $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'error' => [
@@ -258,71 +270,7 @@ class ArgoController extends ControllerBase {
       ],
         $forceErrorCode != 0 ? $forceErrorCode : Response::HTTP_INTERNAL_SERVER_ERROR);
     }
-  }
-
-  /**
-   * Fetch deleted entity IDs.
-   *
-   * @param \Symfony\Component\HttpFoundation\Request $request
-   *   The request.
-   *
-   * @return \Symfony\Component\HttpFoundation\JsonResponse
-   *   The response object.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   */
-  public function getDeletionLog(Request $request) {
-    $deleted = $this->argoService->getDeletionLog();
-    return new JsonResponse($deleted);
-  }
-
-  /**
-   * Reset deleted entity log.
-   *
-   * @param \Symfony\Component\HttpFoundation\Request $request
-   *   The request.
-   *
-   * @return \Symfony\Component\HttpFoundation\Response
-   *   The response object.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   */
-  public function resetDeletionLog(Request $request) {
-    try {
-      $deleted = json_decode($request->getContent(), TRUE)['deleted'];
-      $this->argoService->resetDeletionLog($deleted);
-    }
-    catch (\Exception $e) {
-      $this->logger->log(LogLevel::ERROR, $e->__toString());
-      return new JsonResponse([
-        'message' => $e->__toString(),
-      ],
-        Response::HTTP_INTERNAL_SERVER_ERROR);
-    }
-    return new JsonResponse();
-  }
-
-  /**
-   * Returns the uuid for an entity.
-   *
-   * @param \Symfony\Component\HttpFoundation\Request $request
-   *   The request.
-   *
-   * @return \Symfony\Component\HttpFoundation\JsonResponse
-   *   The response object.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   */
-  public function entityUuid(Request $request) {
-    $type = $request->get('type');
-    $id = $request->get('id');
-
-    $entityInfo = $this->argoService->entityInfo($type, $id);
-
-    return new JsonResponse($entityInfo);
+    return new JsonResponse($result);
   }
 
   /**
@@ -337,11 +285,12 @@ class ArgoController extends ControllerBase {
   public function exportLocale(Request $request) {
     $langcode = $request->get('langcode');
     $include_translations = intval($request->query->get('include-translations', FALSE));
-    $export = $this->argoService->exportLocale($langcode, [
-      'include_translations' => $include_translations,
-    ]);
 
-    return new JsonResponse($export);
+    return $this->handleErrors($request, function () use ($langcode, $include_translations) {
+      return $this->argoService->exportLocale($langcode, [
+        'include_translations' => $include_translations,
+      ]);
+    });
   }
 
   /**
@@ -357,17 +306,11 @@ class ArgoController extends ControllerBase {
     $langcode = $request->get('langcode');
     $translations = Json::decode($request->getContent());
 
-    try {
+    return $this->handleErrors($request, function () use ($langcode, $translations) {
       $this->argoService->translateLocale($langcode, $translations);
-    }
-    catch (\Exception $e) {
-      $this->logger->log(LogLevel::ERROR, $e->__toString());
-      return new JsonResponse([
-        'message' => $e->__toString(),
-      ],
-        Response::HTTP_INTERNAL_SERVER_ERROR);
-    }
-    return new JsonResponse();
+      return NULL;
+    });
+
   }
 
 }
