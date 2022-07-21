@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\argo\Exception\FieldNotFoundException;
 use Drupal\content_moderation\ModerationInformationInterface;
 use Drupal\content_translation\ContentTranslationManagerInterface;
 use Drupal\Core\Database\Connection;
@@ -318,6 +319,7 @@ class ArgoService implements ArgoServiceInterface {
   private function recurseReferences(ContentEntityInterface $target_entity, string $langcode, array $translationsById, array $visitedUuids) {
     foreach ($target_entity->getFields(FALSE) as $fieldItemList) {
       if ($fieldItemList instanceof EntityReferenceFieldItemListInterface) {
+        $fieldLabel = $fieldItemList->getFieldDefinition()->getLabel();
         foreach ($fieldItemList as $delta => $item) {
           /** @var \Drupal\Core\Entity\EntityInterface $item */
           if ($item->entity) {
@@ -326,12 +328,19 @@ class ArgoService implements ArgoServiceInterface {
             if (isset($translationsById[$uuid])) {
               if (!isset($visitedUuids[$uuid])) {
                 $visitedUuids[$uuid] = TRUE;
-                if ($referencedEntity instanceof ParagraphInterface) {
-                  // Replace parent field with reference to translated paragraph.
-                  $fieldItemList[$delta] = $this->translateParagraph($referencedEntity, $uuid, $langcode, $translationsById, $visitedUuids);
-                }
-                elseif ($referencedEntity instanceof ContentEntityInterface) {
-                  $this->translateContentEntity($referencedEntity, $langcode, $translationsById, $visitedUuids);
+                try {
+                  if ($referencedEntity instanceof ParagraphInterface) {
+                    $entityTypeLabel = $referencedEntity->getParagraphType()->label() . ' ' . $referencedEntity->getEntityType()->getLabel();
+                    // Replace parent field with reference to translated paragraph.
+                    $fieldItemList[$delta] = $this->translateParagraph($referencedEntity, $uuid, $langcode, $translationsById, $visitedUuids);
+                  }
+                  elseif ($referencedEntity instanceof ContentEntityInterface) {
+                    $entityTypeLabel = $referencedEntity->getEntityType()->getLabel();
+                    $this->translateContentEntity($referencedEntity, $langcode, $translationsById, $visitedUuids);
+                  }
+                } catch (FieldNotFoundException $e) {
+                  throw new FieldNotFoundException(sprintf('%s Field -> Item %d %s %s: %s', $fieldLabel,
+                    $delta, $entityTypeLabel, $uuid, $e->getMessage()), 0, $e);
                 }
               }
             }

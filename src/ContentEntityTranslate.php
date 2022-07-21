@@ -4,7 +4,10 @@ namespace Drupal\argo;
 
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
+use Drupal\Core\TypedData\Exception\MissingDataException;
+use Drupal\typed_data\Exception\InvalidArgumentException;
 use Drupal\typed_data\DataFetcherInterface;
+use Drupal\argo\Exception\FieldNotFoundException;
 
 /**
  * Translate content entities.
@@ -66,23 +69,43 @@ class ContentEntityTranslate {
       $pathHasMapKey = count(array_keys($pathSplitByMapKeyMark)) > 1;
       if ($pathHasMapKey) {
         $pathWithoutMapKey = $pathSplitByMapKeyMark[0];
-        $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $pathWithoutMapKey, NULL, $targetLangcode);
+        $data = $this->fetchDataByPropertyPath($translatedProperty, $targetEntity, $pathWithoutMapKey, $targetLangcode);
         $mapKey = $pathSplitByMapKeyMark[1];
         $built = $this->buildProp([$mapKey => $translatedPropertyValue]);
         $data->setValue($built);
       }
       else {
-        $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $path, NULL, $targetLangcode);
+        $data = $this->fetchDataByPropertyPath($translatedProperty, $targetEntity, $path, $targetLangcode);
         $data->setValue($translatedPropertyValue);
       }
     }
 
     foreach ($metatags as $propPath => $metatag) {
-      $data = $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $propPath, NULL, $targetLangcode);
+      $data = $this->fetchDataByPropertyPath($translatedProperty, $targetEntity, $propPath, $targetLangcode);
       $data->setValue(serialize($metatag));
     }
 
     return $targetEntity;
+  }
+
+  private function fetchDataByPropertyPath($translatedProperty, $targetEntity, $path, $targetLangcode) {
+    try {
+      return $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $path, NULL, $targetLangcode);
+    } catch (InvalidArgumentException $e) {
+      throw new FieldNotFoundException(sprintf('%s field with path "%s" and value "%s"',
+        $translatedProperty['propertyType'], $path, $translatedProperty['value']), 0, $e);
+    } catch (MissingDataException $e) {
+      $explodePath = explode('.', $path);
+      $fieldLabel = '';
+      if (!empty($explodePath)) {
+        $fieldDefinition = $targetEntity->getFieldDefinition($explodePath[0]);
+        if (isset($fieldDefinition)) {
+          $fieldLabel = $fieldDefinition->getLabel();
+        }
+      }
+      throw new FieldNotFoundException(sprintf('List item does not exist for %s field "%s" with path "%s" and value "%s"',
+        $translatedProperty['propertyType'], $fieldLabel, $path, $translatedProperty['value']), 0, $e);
+    }
   }
 
   /**

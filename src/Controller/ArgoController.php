@@ -3,6 +3,7 @@
 namespace Drupal\argo\Controller;
 
 use Drupal\argo\ArgoServiceInterface;
+use Drupal\argo\Exception\FieldNotFoundException;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -225,24 +226,38 @@ class ArgoController extends ControllerBase {
     $entityType = $request->get('type');
     $uuid = $request->get('uuid');
     $translation = json_decode($request->getContent(), TRUE);
+    $forceErrorCode = intval($request->query->get('force_error_code'));
 
-    try {
+    return $this->handleImport(function () use ($entityType, $uuid, $translation) {
       $this->argoService->translateContent($entityType, $uuid, $translation);
-    }
-    catch (NotFoundException $e) {
-      return new JsonResponse([
-        'message' => $e->getMessage(),
-      ],
-        Response::HTTP_NOT_FOUND);
-    }
-    catch (\Exception $e) {
+    }, $forceErrorCode);
+  }
+
+  private function handleImport($importFunc, $forceErrorCode) {
+    try {
+      $importFunc();
+      return new JsonResponse();
+    } catch (NotFoundException | FieldNotFoundException $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
-        'message' => $e->__toString(),
+        'error' => [
+          'code' => Response::HTTP_NOT_FOUND,
+          'message' => $e->getMessage(),
+          'errors' => []
+        ]
       ],
-        Response::HTTP_INTERNAL_SERVER_ERROR);
+        $forceErrorCode != 0 ? $forceErrorCode : Response::HTTP_NOT_FOUND);
+    } catch (\Exception $e) {
+      $this->logger->log(LogLevel::ERROR, $e->__toString());
+      return new JsonResponse([
+        'error' => [
+          'code' => Response::HTTP_INTERNAL_SERVER_ERROR,
+          'message' => $e->__toString(),
+          'errors' => []
+        ]
+      ],
+        $forceErrorCode != 0 ? $forceErrorCode : Response::HTTP_INTERNAL_SERVER_ERROR);
     }
-    return new JsonResponse();
   }
 
   /**
