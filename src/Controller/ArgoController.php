@@ -115,7 +115,10 @@ class ArgoController extends ControllerBase {
     $limit = intval($request->query->get('limit'));
     $offset = intval($request->query->get('offset'));
 
-    return $this->handleErrors($request, function () use ($entityType, $lastUpdate, $limit, $offset) {
+    return $this->handleErrors($request, function () use (
+      $entityType, $lastUpdate, $limit, $offset,
+      $publishedOnlyBundles, $langcode
+    ) {
       return $this->argoService->getUpdated($entityType, $lastUpdate, $limit, $offset,
         $publishedOnlyBundles, $langcode);
     });
@@ -136,7 +139,7 @@ class ArgoController extends ControllerBase {
     $traversableEntityTypes = $request->get('entity-types');
     $traversableContentTypes = $request->get('content-types');
 
-    return $this->handleErrors($request, function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId) {
+    return $this->handleErrors($request, function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes) {
       return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
     });
   }
