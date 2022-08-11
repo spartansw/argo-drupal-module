@@ -339,10 +339,12 @@ class ArgoService implements ArgoServiceInterface {
                     $entityTypeLabel = $referencedEntity->getEntityType()->getLabel();
                     $this->translateContentEntity($referencedEntity, $langcode, $translationsById, $visitedUuids);
                   }
-                } catch (FieldNotFoundException $e) {
+                }
+                catch (FieldNotFoundException $e) {
                   throw new FieldNotFoundException(sprintf('%s Field -> Item %d %s %s: %s', $fieldLabel,
                     $delta, $entityTypeLabel, $uuid, $e->getMessage()), 0, $e);
-                } catch (InvalidLanguageException | \InvalidArgumentException $e) {
+                }
+                catch (InvalidLanguageException | \InvalidArgumentException $e) {
                   throw new InvalidLanguageException(sprintf('%s Field -> Item %d %s %s: %s', $fieldLabel,
                     $delta, $entityTypeLabel, $uuid, $e->getMessage()), 0, $e);
                 }

@@ -88,13 +88,18 @@ class ContentEntityTranslate {
     return $targetEntity;
   }
 
+  /**
+   * Fetch data by property path.
+   */
   private function fetchDataByPropertyPath($translatedProperty, $targetEntity, $path, $targetLangcode) {
     try {
       return $this->dataFetcher->fetchDataByPropertyPath($targetEntity->getTypedData(), $path, NULL, $targetLangcode);
-    } catch (InvalidArgumentException $e) {
+    }
+    catch (InvalidArgumentException $e) {
       throw new FieldNotFoundException(sprintf('%s field with path "%s" and value "%s"',
         $translatedProperty['propertyType'], $path, $translatedProperty['value']), 0, $e);
-    } catch (MissingDataException $e) {
+    }
+    catch (MissingDataException $e) {
       $explodePath = explode('.', $path);
       $fieldLabel = '';
       if (!empty($explodePath)) {

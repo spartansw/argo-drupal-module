@@ -116,8 +116,12 @@ class ArgoController extends ControllerBase {
     $offset = intval($request->query->get('offset'));
 
     return $this->handleErrors($request, function () use (
-      $entityType, $lastUpdate, $limit, $offset,
-      $publishedOnlyBundles, $langcode
+      $entityType,
+      $lastUpdate,
+      $limit,
+      $offset,
+      $publishedOnlyBundles,
+      $langcode
     ) {
       return $this->argoService->getUpdated($entityType, $lastUpdate, $limit, $offset,
         $publishedOnlyBundles, $langcode);
@@ -247,12 +251,18 @@ class ArgoController extends ControllerBase {
     });
   }
 
-  private function handleErrors($request, $func) {
+  /**
+   * Returns successful result from service, or else a standardized expected or unexpected error message.
+   *
+   * Also provides ability to specify an HTTP response code for errors.
+   */
+  private function handleErrors(Request $request, callable $func) {
     $forceErrorCode = intval($request->query->get('force_error_code'));
 
     try {
       $result = $func();
-    } catch (NotFoundException | FieldNotFoundException | InvalidLanguageException $e) {
+    }
+    catch (NotFoundException | FieldNotFoundException | InvalidLanguageException $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'error' => [
@@ -262,7 +272,8 @@ class ArgoController extends ControllerBase {
         ]
       ],
         $forceErrorCode != 0 ? $forceErrorCode : Response::HTTP_NOT_FOUND);
-    } catch (\Exception $e) {
+    }
+    catch (\Exception $e) {
       $this->logger->log(LogLevel::ERROR, $e->__toString());
       return new JsonResponse([
         'error' => [
