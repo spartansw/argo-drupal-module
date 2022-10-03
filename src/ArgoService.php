@@ -19,6 +19,8 @@ use Drupal\Core\Entity\RevisionLogInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Language\Language;
+use Drupal\entity_reference_revisions\EntityReferenceRevisionsFieldItemList;
+use Drupal\entity_reference_revisions\Plugin\Field\FieldType\EntityReferenceRevisionsItem;
 use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
 use Drupal\argo\Exception\NotFoundException;
@@ -326,7 +328,8 @@ class ArgoService implements ArgoServiceInterface {
           if ($item->entity) {
             $referencedEntity = $item->entity;
             $uuid = !empty($referencedEntity->duplicateSource) ? $referencedEntity->duplicateSource->uuid() : $referencedEntity->uuid();
-            if (isset($translationsById[$uuid])) {
+            // Still need to recurse in case there's referenced translations.
+            if (isset($translationsById[$uuid]) || $referencedEntity instanceof ParagraphInterface) {
               if (!isset($visitedUuids[$uuid])) {
                 $visitedUuids[$uuid] = TRUE;
                 try {
@@ -383,6 +386,12 @@ class ArgoService implements ArgoServiceInterface {
                                       string $langcode,
                                       array $translationsById,
                                       array $visitedUuids) {
+    if (!isset($translationsById[$uuid])) {
+      // Current paragraph isn't translatable but its references may be.
+      $this->recurseReferences($paragraph, $langcode, $translationsById, $visitedUuids);
+      return $paragraph;
+    }
+
     $translated = $this->contentEntityTranslate->translate($paragraph->getTranslation($langcode),
       $langcode, $translationsById[$uuid]);
 
