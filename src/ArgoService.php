@@ -165,9 +165,9 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * {@inheritdoc}
    */
-  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL) {
+  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, array $publishedOnlyBundles = NULL, int $revisionId = NULL) {
     if (is_null($revisionId)) {
-      $entity = $this->loadEntity($entityType, $uuid, TRUE);
+      $entity = $this->loadEntity($entityType, $uuid, TRUE, NULL, $publishedOnlyBundles);
       if (is_null($entity)) {
         throw new NotFoundException(sprintf("Root %s with UUID %s does not exist", $entityType, $uuid));
       }
@@ -415,6 +415,8 @@ class ArgoService implements ArgoServiceInterface {
    *   revision of the entity.
    * @param int|null $revisionId
    *   (optional) Entity revision ID.
+   * @param array|null $publishedOnlyBundles
+   *   (optional) List of bundles to only export if published.
    *
    * @return \Drupal\Core\Entity\ContentEntityInterface
    *   The loaded entity, or NULL if it can't be found.
@@ -423,7 +425,7 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
-  private function loadEntity(string $entityType, string $uuid, bool $latestTranslationAffectedRevision = FALSE, int $revisionId = NULL) {
+  private function loadEntity(string $entityType, string $uuid, bool $latestTranslationAffectedRevision = FALSE, int $revisionId = NULL, array $publishedOnlyBundles = NULL) {
     // Unfortunately loading an entity by its uuid will only load the latest
     // "published" revision which could be different from the original entity.
     // Until Drupal core supports loading entity revisions by a uuid, we try and
@@ -446,6 +448,11 @@ class ArgoService implements ArgoServiceInterface {
 
       if (is_null($entity)) {
         return $entity;
+      }
+
+      if (!is_null($publishedOnlyBundles) && in_array($entity->bundle(), $publishedOnlyBundles)) {
+        $latestPublishedRevisionId = $this->getLatestPublishedRevisionId($entityType, $entity->id(), $entity->language()->getId());
+        return $this->entityTypeManager->getStorage($entityType)->loadRevision($latestPublishedRevisionId);
       }
 
       // Find the latest translation affected entity (e.g. draft revision).
@@ -703,6 +710,71 @@ class ArgoService implements ArgoServiceInterface {
    */
   public function translateLocale(string $langcode, array $translations) {
     $this->localeService->import($langcode, $translations);
+  }
+
+  /**
+   * Get the latest published and translation affected revision ID for an entity.
+   *
+   * @param string $entityType
+   *   Entity type.
+   * @param int $entityId
+   *   Entity ID.
+   * @param string $langcode
+   *   Langcode.
+   *
+   * @return int
+   *   Revision ID.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  private function getLatestPublishedRevisionId(string $entityType, int $entityId, string $langcode): int {
+    /** @var \Drupal\Core\Entity\ContentEntityStorageInterface $entityStorage */
+    $entityStorage = $this->entityTypeManager
+      ->getStorage($entityType);
+
+    /** @var \Drupal\Core\Entity\ContentEntityTypeInterface $contentEntityType */
+    $contentEntityType = $this->entityTypeManager->getDefinition($entityType);
+
+    if (!$contentEntityType->entityClassImplements(EditorialContentEntityBase::class)) {
+      throw new \Exception("\"{$contentEntityType->id()}\" is not an editorial content entity type");
+    }
+
+    $idKey = $contentEntityType->getKey('id');
+    $revisionIdKey = $contentEntityType->getKey('revision');
+    $publishedKey = $contentEntityType->getKey('published');
+    $langcodeKey = $contentEntityType->getKey('langcode');
+    $bundleCol = $contentEntityType->getKey('bundle');
+    $affectedKey = $contentEntityType->getKey('revision_translation_affected');
+
+    /** @var \Drupal\Core\Entity\Sql\SqlContentEntityStorage $entityStorage */
+    $revisionTable = $entityStorage->getRevisionDataTable();
+    $baseTable = $entityStorage->getBaseTable();
+
+    /** @var \Drupal\Core\Entity\Sql\TableMappingInterface $tableMapping */
+    $tableMapping = $entityStorage->getTableMapping();
+
+    $idCol = $this->getColumnName($tableMapping, $idKey);
+    $revisionIdCol = $this->getColumnName($tableMapping, $revisionIdKey);
+    $publishedCol = $this->getColumnName($tableMapping, $publishedKey);
+    $langcodeCol = $this->getColumnName($tableMapping, $langcodeKey);
+    $affectedCol = $this->getColumnName($tableMapping, $affectedKey);
+
+    $results = $this->connection->query("
+        SELECT MAX(revision.{$revisionIdCol}) AS {$revisionIdCol}
+        FROM {$revisionTable} AS revision
+             JOIN {$baseTable} AS base ON base.{$idCol} = revision.{$idCol}
+        WHERE revision.{$langcodeCol} = :langcode
+            AND base.{$idCol} = :id
+            AND revision.{$publishedCol} = 1
+            AND revision.{$affectedCol} = 1;
+        ", [
+      ':id' => $entityId,
+      ':langcode' => $langcode
+    ])->fetchAll();
+
+    $latestPublishedRevision = intval($results[0]->$revisionIdKey);
+    return $latestPublishedRevision;
   }
 
 }

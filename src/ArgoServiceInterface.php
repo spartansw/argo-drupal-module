@@ -62,13 +62,15 @@ interface ArgoServiceInterface {
    *   Traversable entity types.
    * @param array $traversableContentTypes
    *   Traversable content types.
+   * @param array $publishedOnlyBundles
+   *   Bundles to only export if published.
    * @param int $revisionId
    *   Entity revision ID.
    *
    * @return mixed
    *   Export object.
    */
-  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, int $revisionId = NULL);
+  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, array $publishedOnlyBundles = NULL, int $revisionId = NULL);
 
   /**
    * Translate content entity.

@@ -142,9 +142,10 @@ class ArgoController extends ControllerBase {
     $uuid = $request->get('uuid');
     $traversableEntityTypes = $request->get('entity-types');
     $traversableContentTypes = $request->get('content-types');
+    $publishedOnlyBundles = $request->get('published-only-bundles');
 
-    return $this->handleErrors($request, function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes) {
-      return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes);
+    return $this->handleErrors($request, function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $publishedOnlyBundles) {
+      return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $publishedOnlyBundles);
     });
   }
 
@@ -165,7 +166,7 @@ class ArgoController extends ControllerBase {
     $revisionId = $request->get('revisionId');
 
     return $this->handleErrors($request, function () use ($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId) {
-      return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, $revisionId);
+      return $this->argoService->exportContent($entityType, $uuid, $traversableEntityTypes, $traversableContentTypes, NULL, $revisionId);
     });
   }
 
