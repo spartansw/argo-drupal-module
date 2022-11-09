@@ -81,8 +81,10 @@ interface ArgoServiceInterface {
    *   Entity UUID.
    * @param array $translations
    *   Translation object.
+   * @param array $traversableEntityTypes
+   *   Traversable entity types.
    */
-  public function translateContent(string $entityType, string $uuid, array $translations);
+  public function translateContent(string $entityType, string $uuid, array $translations, array $traversableEntityTypes);
 
   /**
    * Get updated.

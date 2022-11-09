@@ -21,7 +21,6 @@ use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Language\Language;
 use Drupal\entity_reference_revisions\EntityReferenceRevisionsFieldItemList;
 use Drupal\entity_reference_revisions\Plugin\Field\FieldType\EntityReferenceRevisionsItem;
-use Drupal\paragraphs\ParagraphInterface;
 use Drupal\user\EntityOwnerInterface;
 use Drupal\argo\Exception\NotFoundException;
 
@@ -191,7 +190,7 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * {@inheritdoc}
    */
-  public function translateContent(string $entityType, string $uuid, array $translations) {
+  public function translateContent(string $entityType, string $uuid, array $translations, array $traversableEntityTypes) {
     $rootTranslation = $translations['root'];
     $childTranslations = $translations['children'];
 
@@ -207,7 +206,7 @@ class ArgoService implements ArgoServiceInterface {
     }
 
     $visitedUuids = [$target_entity->uuid() => TRUE];
-    $this->translateContentEntity($target_entity, $langcode, $translationsById, $visitedUuids);
+    $this->translateContentEntity($target_entity, $langcode, $translationsById, $visitedUuids, $traversableEntityTypes);
   }
 
   /**
@@ -221,6 +220,8 @@ class ArgoService implements ArgoServiceInterface {
    *   Translations by ID.
    * @param array $visitedUuids
    *   Visited UUIDs.
+   * @param array $traversableEntityTypes
+   *   Traversable entity types.
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
    * @throws \Drupal\Core\TypedData\Exception\MissingDataException
@@ -230,7 +231,8 @@ class ArgoService implements ArgoServiceInterface {
   private function translateContentEntity(ContentEntityInterface $source_entity,
                                           string $langcode,
                                           array $translationsById,
-                                          array $visitedUuids) {
+                                          array $visitedUuids,
+                                          array $traversableEntityTypes) {
     $translation = $translationsById[$source_entity->uuid()];
 
     // Ensure translation exists.
@@ -250,7 +252,7 @@ class ArgoService implements ArgoServiceInterface {
       $langcode, $translationsById[$target_entity->uuid()]);
 
     // Translate references.
-    $this->recurseReferences($target_entity, $langcode, $translationsById, $visitedUuids);
+    $this->recurseReferences($target_entity, $langcode, $translationsById, $visitedUuids, $traversableEntityTypes);
 
     // Prepare the translation and ensure various information is set:
     // - The correct translation source property that points to the source
@@ -313,13 +315,15 @@ class ArgoService implements ArgoServiceInterface {
    *   Translations by ID.
    * @param array $visitedUuids
    *   Visited UUIDs.
+   * @param array $traversableEntityTypes
+   *   Traversable entity types.
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
    * @throws \Drupal\Core\TypedData\Exception\MissingDataException
    * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
-  private function recurseReferences(ContentEntityInterface $target_entity, string $langcode, array $translationsById, array $visitedUuids) {
+  private function recurseReferences(ContentEntityInterface $target_entity, string $langcode, array $translationsById, array $visitedUuids, array $traversableEntityTypes) {
     foreach ($target_entity->getFields(FALSE) as $fieldItemList) {
       if ($fieldItemList instanceof EntityReferenceFieldItemListInterface) {
         $fieldLabel = $fieldItemList->getFieldDefinition()->getLabel();
@@ -329,18 +333,19 @@ class ArgoService implements ArgoServiceInterface {
             $referencedEntity = $item->entity;
             $uuid = !empty($referencedEntity->duplicateSource) ? $referencedEntity->duplicateSource->uuid() : $referencedEntity->uuid();
             // Still need to recurse in case there's referenced translations.
-            if (isset($translationsById[$uuid]) || $referencedEntity instanceof ParagraphInterface) {
+            $isTraversable = in_array($referencedEntity->getEntityTypeId(), $traversableEntityTypes);
+            if (isset($translationsById[$uuid]) || $isTraversable) {
               if (!isset($visitedUuids[$uuid])) {
                 $visitedUuids[$uuid] = TRUE;
                 try {
-                  if ($referencedEntity instanceof ParagraphInterface) {
-                    $entityTypeLabel = $referencedEntity->getParagraphType()->label() . ' ' . $referencedEntity->getEntityType()->getLabel();
+                  if ($isTraversable) {
+                    $entityTypeLabel = $referencedEntity->bundle() . ' ' . $referencedEntity->getEntityType()->getLabel();
                     // Replace parent field with reference to translated paragraph.
-                    $fieldItemList[$delta] = $this->translateParagraph($referencedEntity, $uuid, $langcode, $translationsById, $visitedUuids);
+                    $fieldItemList[$delta] = $this->translateParagraph($referencedEntity, $uuid, $langcode, $translationsById, $visitedUuids, $traversableEntityTypes);
                   }
                   elseif ($referencedEntity instanceof ContentEntityInterface) {
                     $entityTypeLabel = $referencedEntity->getEntityType()->getLabel();
-                    $this->translateContentEntity($referencedEntity, $langcode, $translationsById, $visitedUuids);
+                    $this->translateContentEntity($referencedEntity, $langcode, $translationsById, $visitedUuids, $traversableEntityTypes);
                   }
                 }
                 catch (FieldNotFoundException $e) {
@@ -362,7 +367,7 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * Translate paragraph.
    *
-   * @param \Drupal\paragraphs\Entity\ParagraphInterface $paragraph
+   * @param \Drupal\core\Entity\ContentEntityInterface $paragraph
    *   Paragraph.
    * @param string $uuid
    *   UUID.
@@ -372,6 +377,8 @@ class ArgoService implements ArgoServiceInterface {
    *   Translations by ID.
    * @param array $visitedUuids
    *   Visited UUIDs.
+   * @param array $traversableEntityTypes
+   *   Traversable entity types.
    *
    * @return \Drupal\core\Entity\ContentEntityInterface
    *   Translated paragraph.
@@ -381,21 +388,22 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Core\TypedData\Exception\ReadOnlyException
    * @throws \Drupal\typed_data\Exception\InvalidArgumentException
    */
-  private function translateParagraph(ParagraphInterface $paragraph,
+  private function translateParagraph(ContentEntityInterface $paragraph,
                                       string $uuid,
                                       string $langcode,
                                       array $translationsById,
-                                      array $visitedUuids) {
+                                      array $visitedUuids,
+                                      array $traversableEntityTypes) {
     if (!isset($translationsById[$uuid])) {
       // Current paragraph isn't translatable but its references may be.
-      $this->recurseReferences($paragraph, $langcode, $translationsById, $visitedUuids);
+      $this->recurseReferences($paragraph, $langcode, $translationsById, $visitedUuids, $traversableEntityTypes);
       return $paragraph;
     }
 
     $translated = $this->contentEntityTranslate->translate($paragraph->getTranslation($langcode),
       $langcode, $translationsById[$uuid]);
 
-    $this->recurseReferences($translated, $langcode, $translationsById, $visitedUuids);
+    $this->recurseReferences($translated, $langcode, $translationsById, $visitedUuids, $traversableEntityTypes);
 
     $translated->setNewRevision(TRUE);
     $translated->setNeedsSave(TRUE);

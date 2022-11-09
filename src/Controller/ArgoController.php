@@ -185,10 +185,11 @@ class ArgoController extends ControllerBase {
   public function translateContentEntity(Request $request) {
     $entityType = $request->get('type');
     $uuid = $request->get('uuid');
+    $traversableEntityTypes = $request->get('entity-types');
     $translation = json_decode($request->getContent(), TRUE);
 
-    return $this->handleErrors($request, function () use ($entityType, $uuid, $translation) {
-      $this->argoService->translateContent($entityType, $uuid, $translation);
+    return $this->handleErrors($request, function () use ($entityType, $uuid, $translation, $traversableEntityTypes) {
+      $this->argoService->translateContent($entityType, $uuid, $translation, $traversableEntityTypes);
       return NULL;
     });
   }
