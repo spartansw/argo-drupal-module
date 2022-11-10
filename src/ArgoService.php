@@ -19,8 +19,6 @@ use Drupal\Core\Entity\RevisionLogInterface;
 use Drupal\Core\Entity\Sql\TableMappingInterface;
 use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Language\Language;
-use Drupal\entity_reference_revisions\EntityReferenceRevisionsFieldItemList;
-use Drupal\entity_reference_revisions\Plugin\Field\FieldType\EntityReferenceRevisionsItem;
 use Drupal\user\EntityOwnerInterface;
 use Drupal\argo\Exception\NotFoundException;
 
@@ -400,13 +398,28 @@ class ArgoService implements ArgoServiceInterface {
       return $paragraph;
     }
 
+    $isRevisionable = $paragraph->getEntityType()->hasKey('revision');
+
+    if (!$isRevisionable) {
+      if ($paragraph->hasTranslation($langcode)) {
+        $paragraph->removeTranslation($langcode);
+      }
+      $array = $paragraph->toArray();
+      $paragraph->addTranslation($langcode, $array);
+    }
+
     $translated = $this->contentEntityTranslate->translate($paragraph->getTranslation($langcode),
       $langcode, $translationsById[$uuid]);
 
     $this->recurseReferences($translated, $langcode, $translationsById, $visitedUuids, $traversableEntityTypes);
 
-    $translated->setNewRevision(TRUE);
-    $translated->setNeedsSave(TRUE);
+    if ($isRevisionable) {
+      $translated->setNewRevision(TRUE);
+      $translated->setNeedsSave(TRUE);
+    }
+    else {
+      $translated->save();
+    }
 
     return $translated;
   }
