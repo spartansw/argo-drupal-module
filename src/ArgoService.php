@@ -744,8 +744,6 @@ class ArgoService implements ArgoServiceInterface {
     $revisionIdKey = $contentEntityType->getKey('revision');
     $publishedKey = $contentEntityType->getKey('published');
     $langcodeKey = $contentEntityType->getKey('langcode');
-    $bundleCol = $contentEntityType->getKey('bundle');
-    $affectedKey = $contentEntityType->getKey('revision_translation_affected');
 
     /** @var \Drupal\Core\Entity\Sql\SqlContentEntityStorage $entityStorage */
     $revisionTable = $entityStorage->getRevisionDataTable();
@@ -758,7 +756,6 @@ class ArgoService implements ArgoServiceInterface {
     $revisionIdCol = $this->getColumnName($tableMapping, $revisionIdKey);
     $publishedCol = $this->getColumnName($tableMapping, $publishedKey);
     $langcodeCol = $this->getColumnName($tableMapping, $langcodeKey);
-    $affectedCol = $this->getColumnName($tableMapping, $affectedKey);
 
     $results = $this->connection->query("
         SELECT MAX(revision.{$revisionIdCol}) AS {$revisionIdCol}
@@ -766,8 +763,7 @@ class ArgoService implements ArgoServiceInterface {
              JOIN {$baseTable} AS base ON base.{$idCol} = revision.{$idCol}
         WHERE revision.{$langcodeCol} = :langcode
             AND base.{$idCol} = :id
-            AND revision.{$publishedCol} = 1
-            AND revision.{$affectedCol} = 1;
+            AND revision.{$publishedCol} = 1;
         ", [
       ':id' => $entityId,
       ':langcode' => $langcode
