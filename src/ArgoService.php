@@ -400,10 +400,11 @@ class ArgoService implements ArgoServiceInterface {
 
     $isRevisionable = $paragraph->getEntityType()->hasKey('revision');
 
-    if (!$isRevisionable) {
-      if ($paragraph->hasTranslation($langcode)) {
-        $paragraph->removeTranslation($langcode);
-      }
+    if (!$isRevisionable && $paragraph->hasTranslation($langcode)) {
+      $paragraph->removeTranslation($langcode);
+    }
+
+    if (!$paragraph->hasTranslation($langcode)) {
       $array = $paragraph->toArray();
       $paragraph->addTranslation($langcode, $array);
     }
