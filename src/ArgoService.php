@@ -602,7 +602,7 @@ class ArgoService implements ArgoServiceInterface {
               revision.{$publishedCol} = 1) OR
               base.{$bundleCol} NOT IN (:published_only_bundles[]))
     GROUP BY revision.{$idCol}
-    ORDER BY revision.{$changedCol} DESC, revision.{$revisionIdCol} DESC;
+    ORDER BY {$revisionIdCol} DESC;
     ", [
       ':last_update' => $lastUpdate,
       ':langcode' => $langcode,
