@@ -70,7 +70,7 @@ interface ArgoServiceInterface {
    * @return mixed
    *   Export object.
    */
-  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, array $publishedOnlyBundles = NULL, int $revisionId = NULL);
+  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, string $langcode, array $publishedOnlyBundles = NULL, int $revisionId = NULL);
 
   /**
    * Translate content entity.

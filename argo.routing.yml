@@ -69,7 +69,7 @@ argo.content.reset_deletion_log:
     no_cache: TRUE
 
 argo.content.export:
-  path: /argo/content-entity/{type}/{uuid}/export
+  path: /argo/content-entity/{type}/{uuid}/{langcode}/export
   defaults:
     _title: 'Export content entity for translation'
     _controller: '\Drupal\argo\Controller\ArgoController::exportContentEntity'
@@ -81,7 +81,7 @@ argo.content.export:
     no_cache: TRUE
 
 argo.export_revision:
-  path: /argo/content-entity/{type}/{uuid}/export/{revisionId}
+  path: /argo/content-entity/{type}/{uuid}/{langcode}/export/{revisionId}
   defaults:
     _title: 'Export content entity revision for translation'
     _controller: '\Drupal\argo\Controller\ArgoController::exportContentEntityRevision'

@@ -162,17 +162,17 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * {@inheritdoc}
    */
-  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, array $publishedOnlyBundles = NULL, int $revisionId = NULL) {
+  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, string $langcode, array $publishedOnlyBundles = NULL, int $revisionId = NULL) {
     if (is_null($revisionId)) {
-      $entity = $this->loadEntity($entityType, $uuid, TRUE, NULL, $publishedOnlyBundles);
+      $entity = $this->loadEntity($entityType, $uuid, $langcode, TRUE, NULL, $publishedOnlyBundles);
       if (is_null($entity)) {
         throw new NotFoundException(sprintf("Root %s with UUID %s does not exist", $entityType, $uuid));
       }
     }
     else {
-      $entity = $this->loadEntity($entityType, $uuid, FALSE, $revisionId);
+      $entity = $this->loadEntity($entityType, $uuid, $langcode, FALSE, $revisionId);
       if (is_null($entity)) {
-        $entity = $this->loadEntity($entityType, $uuid, TRUE);
+        $entity = $this->loadEntity($entityType, $uuid, $langcode, TRUE);
         if (is_null($entity)) {
           throw new NotFoundException(sprintf("Root %s with UUID %s does not exist", $entityType, $uuid));
         }
@@ -192,8 +192,9 @@ class ArgoService implements ArgoServiceInterface {
     $rootTranslation = $translations['root'];
     $childTranslations = $translations['children'];
 
+    $sourceLangcode = $rootTranslation['sourceLangcode'];
     $langcode = $rootTranslation['targetLangcode'];
-    $target_entity = $this->loadEntity($entityType, $uuid);
+    $target_entity = $this->loadEntity($entityType, $uuid, $sourceLangcode);
     if (is_null($target_entity)) {
       throw new NotFoundException("Entity not found.");
     }
@@ -447,7 +448,7 @@ class ArgoService implements ArgoServiceInterface {
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    * @throws \Drupal\Core\Entity\EntityStorageException
    */
-  private function loadEntity(string $entityType, string $uuid, bool $latestTranslationAffectedRevision = FALSE, int $revisionId = NULL, array $publishedOnlyBundles = NULL) {
+  private function loadEntity(string $entityType, string $uuid, string $langcode, bool $latestTranslationAffectedRevision = FALSE, int $revisionId = NULL, array $publishedOnlyBundles = NULL) {
     // Unfortunately loading an entity by its uuid will only load the latest
     // "published" revision which could be different from the original entity.
     // Until Drupal core supports loading entity revisions by a uuid, we try and
@@ -458,6 +459,7 @@ class ArgoService implements ArgoServiceInterface {
       $entity = $this->entityTypeManager
         ->getStorage($entityType)
         ->loadRevision($revisionId);
+      $entity = $entity->getTranslation($langcode);
     }
     // If specified, then return the most recent revision_translation_affected
     // revision. This will be the revision that contains the most recent
@@ -467,6 +469,7 @@ class ArgoService implements ArgoServiceInterface {
       // If the revision id is not available, we resort to the uuid. Some
       // entities might not support revisions.
       $entity = $this->entityRepository->loadEntityByUuid($entityType, $uuid);
+      $entity = $entity->getTranslation($langcode);
 
       if (is_null($entity)) {
         return $entity;
@@ -486,6 +489,7 @@ class ArgoService implements ArgoServiceInterface {
         $entity = $this->entityTypeManager
           ->getStorage($entityType)
           ->loadRevision($latest_translation_affected_revision);
+        $entity = $entity->getTranslation($langcode);
       }
     }
     // Otherwise, return the most recent active revision as determined by
@@ -501,6 +505,7 @@ class ArgoService implements ArgoServiceInterface {
       if (is_null($entity)) {
         return NULL;
       }
+      $entity = $entity->getTranslation($langcode);
       $entity = $this->entityRepository->getActive($entityType, $entity->id(), []);
     }
 
@@ -631,6 +636,7 @@ class ArgoService implements ArgoServiceInterface {
     $entities = $entityStorage->loadMultipleRevisions($revisionIds);
     /** @var \Drupal\Core\Entity\EditorialContentEntityBase $entity */
     foreach ($entities as $entity) {
+      $entity = $entity->getTranslation($langcode);
       $changedTime = intval($entity->getChangedTime());
       $updated['data'][] = [
         'typeId' => $entity->getEntityTypeId(),
