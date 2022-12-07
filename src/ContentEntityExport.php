@@ -84,7 +84,12 @@ class ContentEntityExport {
             if (!isset($ignoreTypes[$dataType])) {
               $prop = $fieldItem->get($propName);
               $propertyPath = $prop->getPropertyPath();
-              $value = $prop->getValue();
+              if ($dataType === 'uri') {
+                $value = UriWrapper::getDisplayUri($prop->getValue());
+              }
+              else {
+                $value = $prop->getValue();
+              }
 
               if (!is_string($value) || strlen(str_replace(' ', '', $value)) > 0) {
                 $hasFieldOut = TRUE;

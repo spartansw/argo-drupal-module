@@ -76,6 +76,9 @@ class ContentEntityTranslate {
       }
       else {
         $data = $this->fetchDataByPropertyPath($translatedProperty, $targetEntity, $path, $targetLangcode);
+        if ($data->getDataDefinition()->getDataType() === 'uri') {
+          $translatedPropertyValue = UriWrapper::getUri($translatedPropertyValue);
+        }
         $data->setValue($translatedPropertyValue);
       }
     }
