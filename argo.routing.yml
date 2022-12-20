@@ -33,6 +33,18 @@ argo.config.translation:
   options:
     no_cache: TRUE
 
+argo.content.field:
+  path: /argo/content-entity/{type}/{id}/field/{field}
+  defaults:
+    _title: 'Get content entity field value'
+    _controller: '\Drupal\argo\Controller\ArgoController::getField'
+  requirements:
+    _format: 'json'
+    _permission: 'translate content using argo'
+  methods: ['GET']
+  options:
+    no_cache: TRUE
+
 # Content translation
 argo.content.updated:
   path: /argo/content-entity/{type}/updated

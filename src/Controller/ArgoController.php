@@ -97,6 +97,33 @@ class ArgoController extends ControllerBase {
   }
 
   /**
+   * Get field.
+   *
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The request.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   The response object.
+   */
+  public function getField(Request $request) {
+    $entityType = $request->get('type');
+    $id = $request->get('id');
+    $field = $request->get('field');
+    $targetLanguages = $request->get('target-languages');
+    $publishedOnlyBundles = $request->get('published-only-bundles');
+
+    return $this->handleErrors($request, function () use (
+      $entityType,
+      $id,
+      $field,
+      $targetLanguages,
+      $publishedOnlyBundles
+    ) {
+      return $this->argoService->getField($entityType, $id, $field, $targetLanguages, $publishedOnlyBundles);
+    });
+  }
+
+  /**
    * Lists updated editorial content entity metadata.
    *
    * Uses a single 'changed' field type.

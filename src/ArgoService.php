@@ -493,6 +493,65 @@ class ArgoService implements ArgoServiceInterface {
   }
 
   /**
+   * Get a field for a list of languages.
+   *
+   * @param string $entityType
+   *   Entity type.
+   * @param string $id
+   *   Entity ID.
+   * @param string $field
+   *   Field name.
+   * @param array $targetLanguages
+   *   Target languages.
+   * @param array $publishedOnlyBundles
+   *   Published only bundle names.
+   *
+   * @return array[]|NotFoundException
+   *   Array of field values for each language.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   */
+  public function getField(string $entityType, string $id, string $field, array $targetLanguages, array $publishedOnlyBundles) {
+    /** @var \Drupal\Core\Entity\ContentEntityStorageInterface $entityStorage */
+    $entityStorage = $this->entityTypeManager->getStorage($entityType);
+    $out = [];
+    foreach ($targetLanguages as $language) {
+      $defaultRevision = $entityStorage->load($id);
+      $entity = $defaultRevision;
+      if (is_null($entity)) {
+        return new NotFoundException($entityType . ' with ID ' . $id . ' not found');
+      }
+
+      if (!is_null($publishedOnlyBundles) && in_array($entity->bundle(), $publishedOnlyBundles)) {
+        $latestPublishedRevisionId = $this->getLatestPublishedRevisionId($entityType, $entity->id(), $language);
+        $entity = $entityStorage->loadRevision($latestPublishedRevisionId);
+        if (!$entity || !$entity->hasTranslation($language)) {
+          continue;
+        }
+      }
+      else {
+        $latestRevisionId = $entityStorage->getLatestTranslationAffectedRevisionId($entity->id(), $language);
+        if ($latestRevisionId) {
+          /** @var \Drupal\Core\Entity\ContentEntityInterface $latestRevision */
+          $latestRevision = $entityStorage->loadRevision($latestRevisionId);
+          if (!$latestRevision->wasDefaultRevision() || $defaultRevision->hasTranslation($language)) {
+            $entity = $latestRevision;
+          }
+        }
+      }
+
+      $translation = $entity->getTranslation($language);
+      $value = $translation->get($field)->value;
+      $out[] = [
+        'value' => $value,
+        'language' => $language
+        ];
+    }
+    return ['fields' => $out];
+  }
+
+  /**
    * Get updated entities.
    *
    * @param string $entityType
