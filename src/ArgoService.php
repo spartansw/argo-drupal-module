@@ -259,6 +259,7 @@ class ArgoService implements ArgoServiceInterface {
     // See: \Drupal\content_translation\Controller\ContentTranslationController::prepareTranslation.
     $metadata = $this->contentTranslationManager->getTranslationMetadata($translated);
     $metadata->setCreatedTime(\Drupal::time()->getRequestTime());
+    $metadata->setChangedTime(\Drupal::time()->getRequestTime());
     $metadata->setSource($source_entity->language()->getId());
 
     if ($translated instanceof EntityPublishedInterface) {
