@@ -66,11 +66,13 @@ interface ArgoServiceInterface {
    *   Bundles to only export if published.
    * @param int $revisionId
    *   Entity revision ID.
+   * @param array $hideFields
+   *   Boolean field names that result in an empty export if the value is set to true.
    *
    * @return mixed
    *   Export object.
    */
-  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, array $publishedOnlyBundles = NULL, int $revisionId = NULL);
+  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, array $publishedOnlyBundles = NULL, int $revisionId = NULL, array $hideFields = []);
 
   /**
    * Translate content entity.

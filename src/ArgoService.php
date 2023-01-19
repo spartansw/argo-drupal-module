@@ -165,7 +165,7 @@ class ArgoService implements ArgoServiceInterface {
   /**
    * {@inheritdoc}
    */
-  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, array $publishedOnlyBundles = NULL, int $revisionId = NULL) {
+  public function exportContent(string $entityType, string $uuid, array $traversableEntityTypes, array $traversableContentTypes, array $publishedOnlyBundles = NULL, int $revisionId = NULL, array $hideFields = []) {
     if (is_null($revisionId)) {
       $entity = $this->loadEntity($entityType, $uuid, TRUE, NULL, $publishedOnlyBundles);
       if (is_null($entity)) {
@@ -185,7 +185,7 @@ class ArgoService implements ArgoServiceInterface {
         }
       }
     }
-    return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes);
+    return $this->contentEntityExport->export($entity, $traversableEntityTypes, $traversableContentTypes, $hideFields);
   }
 
   /**

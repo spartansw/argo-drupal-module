@@ -28,11 +28,13 @@ class ContentEntityExport {
    *   Traversable entity types.
    * @param array $traversableContentTypes
    *   Traversable content types.
+   * @param array $hideFields
+   *   Boolean field names that result in an empty export if the value is set to true.
    *
    * @return array
    *   Exported entity.
    */
-  public function export(ContentEntityInterface $entity, array $traversableEntityTypes, array $traversableContentTypes): array {
+  public function export(ContentEntityInterface $entity, array $traversableEntityTypes, array $traversableContentTypes, array $hideFields): array {
     $translatableFields = $entity->getTranslatableFields(FALSE);
 
     foreach ($translatableFields as $name => $translatableField) {
@@ -69,130 +71,140 @@ class ContentEntityExport {
     ];
 
     $translationOut = ['fields' => []];
-    foreach ($translatableFields as $fieldName => $field) {
-      $hasFieldOut = FALSE;
-      $itemsOut = [];
-      /* @var \Drupal\Core\Field\FieldItemInterface $fieldItem . */
-      foreach ($field as $itemNumber => $fieldItem) {
-        $hasItemOut = FALSE;
-        $propDefs = $fieldItem->getDataDefinition()->getPropertyDefinitions();
-        $propertiesOut = [];
-        foreach ($propDefs as $propName => $propDef) {
-          $dataType = $propDef->getDataType();
-          // TODO: recurse complex types.
-          if (!$propDef->isComputed()) {
-            if (!isset($ignoreTypes[$dataType])) {
-              $prop = $fieldItem->get($propName);
-              $propertyPath = $prop->getPropertyPath();
-              if ($dataType === 'uri') {
-                $value = UriWrapper::getDisplayUri($prop->getValue());
-              }
-              else {
-                $value = $prop->getValue();
-              }
 
-              if (!is_string($value) || strlen(str_replace(' ', '', $value)) > 0) {
-                $hasFieldOut = TRUE;
-                $hasItemOut = TRUE;
-              }
-              if ($value !== NULL) {
-                if (isset($stringTypes[$dataType])) {
-                  // TODO: remove null values?
-                  $outValue = $value;
-                }
-                elseif ($dataType === 'metatag') {
-                  $metatag = unserialize($value);
-                  foreach ($metatag as $tagName => $tagValue) {
-                    if (is_string($tagValue)) {
-                      $propertiesOut[] = [
-                        'name' => $propName,
-                        'label' => (string) $propDef->getLabel(),
-                        'type' => $dataType,
-                        'value' => $tagValue,
-                        'path' => $propertyPath . '.' . $tagName,
-                      ];
-                    }
-                  }
-                  continue;
+    $isHidden = FALSE;
+    foreach ($hideFields as $hideField) {
+      if ($entity->hasField($hideField) && $entity->get($hideField)->value == "1") {
+        $isHidden = TRUE;
+      }
+    }
+
+    if (!$isHidden) {
+      foreach ($translatableFields as $fieldName => $field) {
+        $hasFieldOut = FALSE;
+        $itemsOut = [];
+        /* @var \Drupal\Core\Field\FieldItemInterface $fieldItem . */
+        foreach ($field as $itemNumber => $fieldItem) {
+          $hasItemOut = FALSE;
+          $propDefs = $fieldItem->getDataDefinition()->getPropertyDefinitions();
+          $propertiesOut = [];
+          foreach ($propDefs as $propName => $propDef) {
+            $dataType = $propDef->getDataType();
+            // TODO: recurse complex types.
+            if (!$propDef->isComputed()) {
+              if (!isset($ignoreTypes[$dataType])) {
+                $prop = $fieldItem->get($propName);
+                $propertyPath = $prop->getPropertyPath();
+                if ($dataType === 'uri') {
+                  $value = UriWrapper::getDisplayUri($prop->getValue());
                 }
                 else {
-                  if ($dataType === 'map') {
-                    /* @var \Drupal\Core\TypedData\MapDataDefinition $mapDataDef . */
-                    $mapDataDef = $prop->getDataDefinition();
-                    $mapPropDefs = $mapDataDef->getPropertyDefinitions();
-                    if (count($mapPropDefs) === 0) {
-                      if (count($value) > 0) {
-                        // TODO: recurse finding strings.
-                        $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has no prop defs for values');
+                  $value = $prop->getValue();
+                }
 
-                        foreach ($this->flattenProp($value) as $key => $value) {
-                          // Map keys are marked in path with '!' to differentiate from property keys.
-                          $propertiesOut[] = [
-                            'name' => $propName,
-                            'label' => (string) $propDef->getLabel(),
-                            'type' => $dataType,
-                            'value' => $value,
-                            'path' => $propertyPath . '!' . $key,
-                          ];
+                if (!is_string($value) || strlen(str_replace(' ', '', $value)) > 0) {
+                  $hasFieldOut = TRUE;
+                  $hasItemOut = TRUE;
+                }
+                if ($value !== NULL) {
+                  if (isset($stringTypes[$dataType])) {
+                    // TODO: remove null values?
+                    $outValue = $value;
+                  }
+                  elseif ($dataType === 'metatag') {
+                    $metatag = unserialize($value);
+                    foreach ($metatag as $tagName => $tagValue) {
+                      if (is_string($tagValue)) {
+                        $propertiesOut[] = [
+                          'name' => $propName,
+                          'label' => (string) $propDef->getLabel(),
+                          'type' => $dataType,
+                          'value' => $tagValue,
+                          'path' => $propertyPath . '.' . $tagName,
+                        ];
+                      }
+                    }
+                    continue;
+                  }
+                  else {
+                    if ($dataType === 'map') {
+                      /* @var \Drupal\Core\TypedData\MapDataDefinition $mapDataDef . */
+                      $mapDataDef = $prop->getDataDefinition();
+                      $mapPropDefs = $mapDataDef->getPropertyDefinitions();
+                      if (count($mapPropDefs) === 0) {
+                        if (count($value) > 0) {
+                          // TODO: recurse finding strings.
+                          $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has no prop defs for values');
+
+                          foreach ($this->flattenProp($value) as $key => $value) {
+                            // Map keys are marked in path with '!' to differentiate from property keys.
+                            $propertiesOut[] = [
+                              'name' => $propName,
+                              'label' => (string) $propDef->getLabel(),
+                              'type' => $dataType,
+                              'value' => $value,
+                              'path' => $propertyPath . '!' . $key,
+                            ];
+                          }
+                          continue;
                         }
-                        continue;
+                        else {
+                          // Empty array as value. Skip.
+                          continue;
+                        }
                       }
                       else {
-                        // Empty array as value. Skip.
-                        continue;
+                        // TODO: get defs.
+                        $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has defs but are not read');
                       }
-                    }
-                    else {
-                      // TODO: get defs.
-                      $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'map has defs but are not read');
-                    }
-                    if (isset($value['attributes'])) {
-                      $attributes = $value['attributes'];
-                      if (count($attributes) > 0) {
-                        if (!(isset($attributes['target']) && ($attributes['target'] === '_blank') || $attributes['target'] === 0)) {
-                          $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'strange attributes map');
-                          $outValue = $value;
+                      if (isset($value['attributes'])) {
+                        $attributes = $value['attributes'];
+                        if (count($attributes) > 0) {
+                          if (!(isset($attributes['target']) && ($attributes['target'] === '_blank') || $attributes['target'] === 0)) {
+                            $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'strange attributes map');
+                            $outValue = $value;
+                          }
                         }
                       }
+                      else {
+                        $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown map type');
+                        $outValue = $value;
+                      }
                     }
                     else {
-                      $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown map type');
+                      $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown data type');
                       $outValue = $value;
                     }
                   }
-                  else {
-                    $this->addWarning($warnings, $entity, $value, $dataType, $propName, 'unknown data type');
-                    $outValue = $value;
-                  }
+                  $propertiesOut[] = [
+                    'name' => $propName,
+                    'label' => (string) $propDef->getLabel(),
+                    'type' => $dataType,
+                    'value' => $outValue,
+                    'path' => $propertyPath,
+                  ];
                 }
-                $propertiesOut[] = [
-                  'name' => $propName,
-                  'label' => (string) $propDef->getLabel(),
-                  'type' => $dataType,
-                  'value' => $outValue,
-                  'path' => $propertyPath,
-                ];
               }
             }
           }
+          if ($hasItemOut) {
+            $itemsOut[] = [
+              'position' => $itemNumber,
+              'properties' => $propertiesOut,
+            ];
+          }
         }
-        if ($hasItemOut) {
-          $itemsOut[] = [
-            'position' => $itemNumber,
-            'properties' => $propertiesOut,
+        if ($hasFieldOut) {
+          $dataDefinition = $field->getDataDefinition();
+          $fieldOut = [
+            'name' => $fieldName,
+            'type' => $dataDefinition->getType(),
+            'label' => (string) $dataDefinition->getLabel(),
+            'description' => $dataDefinition->getDescription(),
+            'items' => $itemsOut,
           ];
+          $translationOut['fields'][] = $fieldOut;
         }
-      }
-      if ($hasFieldOut) {
-        $dataDefinition = $field->getDataDefinition();
-        $fieldOut = [
-          'name' => $fieldName,
-          'type' => $dataDefinition->getType(),
-          'label' => (string) $dataDefinition->getLabel(),
-          'description' => $dataDefinition->getDescription(),
-          'items' => $itemsOut,
-        ];
-        $translationOut['fields'][] = $fieldOut;
       }
     }
     $translationOut['warnings'] = $warnings;
