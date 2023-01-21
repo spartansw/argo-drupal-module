@@ -5,3 +5,9 @@ type: module
 core: 8.x
 core_version_requirement: ^8 || ^9
 php: 7.3
+
+dependencies:
+  - drupal:typed_data
+  - drupal:content_moderation
+  - drupal:content_translation
+  - drupal:locale
