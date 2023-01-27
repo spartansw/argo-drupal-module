@@ -110,7 +110,7 @@ class ArgoController extends ControllerBase {
     $id = $request->get('id');
     $field = $request->get('field');
     $targetLanguages = $request->get('target-languages');
-    $publishedOnlyBundles = $request->get('published-only-bundles');
+    $publishedOnlyBundles = $request->get('published-only-bundles', []);
 
     return $this->handleErrors($request, function () use (
       $entityType,
