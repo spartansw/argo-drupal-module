@@ -546,6 +546,9 @@ class ArgoService implements ArgoServiceInterface {
         continue;
       }
       $translation = $entity->getTranslation($language);
+      if (!$translation->hasField($field)) {
+        continue;
+      }
       $value = $translation->get($field)->value;
       $out[] = [
         'value' => $value,
