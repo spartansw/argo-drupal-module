@@ -5,6 +5,9 @@
   "keywords": ["Drupal"],
   "homepage": "https://github.com/spartansw/argo-drupal-module",
   "license": "GPL-2.0+",
+  "require": {
+    "drupal/typed_data": "^1.0"
+  },
   "minimum-stability": "dev",
   "authors": [],
   "support": {
