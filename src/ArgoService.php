@@ -337,7 +337,8 @@ class ArgoService implements ArgoServiceInterface {
                   if ($referencedEntity instanceof ParagraphInterface) {
                     $entityTypeLabel = $referencedEntity->getParagraphType()->label() . ' ' . $referencedEntity->getEntityType()->getLabel();
                     // Replace parent field with reference to translated paragraph.
-                    $fieldItemList[$delta] = $this->translateParagraph($referencedEntity, $uuid, $langcode, $translationsById, $visitedUuids);
+                    $isAsymmetric = $fieldItemList->getFieldDefinition()->isTranslatable();
+                    $fieldItemList[$delta] = $this->translateParagraph($referencedEntity, $uuid, $langcode, $translationsById, $visitedUuids, $isAsymmetric);
                   }
                   elseif ($referencedEntity instanceof ContentEntityInterface) {
                     $entityTypeLabel = $referencedEntity->getEntityType()->getLabel();
@@ -373,6 +374,8 @@ class ArgoService implements ArgoServiceInterface {
    *   Translations by ID.
    * @param array $visitedUuids
    *   Visited UUIDs.
+   * @param bool $isAsymmetric
+   *   True if paragraph has already been set up for asymmetric translation.
    *
    * @return \Drupal\core\Entity\ContentEntityInterface
    *   Translated paragraph.
@@ -386,20 +389,37 @@ class ArgoService implements ArgoServiceInterface {
                                       string $uuid,
                                       string $langcode,
                                       array $translationsById,
-                                      array $visitedUuids) {
+                                      array $visitedUuids,
+                                      bool $isAsymmetric) {
     if (!isset($translationsById[$uuid])) {
       // Current paragraph isn't translatable but its references may be.
       $this->recurseReferences($paragraph, $langcode, $translationsById, $visitedUuids);
       return $paragraph;
     }
 
-    $translated = $this->contentEntityTranslate->translate($paragraph->getTranslation($langcode),
+    if ($isAsymmetric) {
+      $translation = $paragraph->getTranslation($langcode);
+    }
+    else {
+      if (!$paragraph->hasTranslation($langcode)) {
+        $paragraph->addTranslation($langcode, $paragraph->toArray());
+      }
+      $translation = $paragraph->getTranslation($langcode);
+      $translation->setRevisionTranslationAffected(FALSE);
+      $translation->setRevisionTranslationAffectedEnforced(TRUE);
+    }
+    $translated = $this->contentEntityTranslate->translate($translation,
       $langcode, $translationsById[$uuid]);
 
     $this->recurseReferences($translated, $langcode, $translationsById, $visitedUuids);
 
-    $translated->setNewRevision(TRUE);
-    $translated->setNeedsSave(TRUE);
+    if ($isAsymmetric) {
+      $translated->setNewRevision(TRUE);
+      $translated->setNeedsSave(TRUE);
+    }
+    else {
+      $translated->save();
+    }
 
     return $translated;
   }
