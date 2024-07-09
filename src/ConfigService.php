@@ -312,7 +312,9 @@ class ConfigService {
   protected function doExport($value, $key = NULL, array &$export = []) {
     if (is_array($value)) {
       foreach ($value as $nested_key => $nested_value) {
-        $parent_key = implode('.', array_filter([$key, $nested_key]));
+        $parent_key = implode('.', array_filter([$key, $nested_key], function ($value) {
+          return $value !== NULL && $value !== FALSE && $value !== '';
+        }));
         $this->doExport($nested_value, $parent_key, $export);
       }
     }
