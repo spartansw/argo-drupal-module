@@ -26,11 +26,16 @@ services:
       - '@language_manager'
   argo.content_export:
     class: Drupal\argo\ContentEntityExport
+    arguments:
+      - '@argo.metatag_service'
   argo.content_translate:
     class: Drupal\argo\ContentEntityTranslate
     arguments:
       - '@typed_data.data_fetcher'
+      - '@argo.metatag_service'
   argo.locale_service:
     class: Drupal\argo\LocaleService
     arguments:
       - '@locale.storage'
+  argo.metatag_service:
+    class: Drupal\argo\MetatagService

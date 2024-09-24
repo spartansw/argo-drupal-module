@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\Component\Serialization\Json;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\TypedData\Exception\MissingDataException;
@@ -21,16 +22,28 @@ class ContentEntityTranslate {
    */
   private $dataFetcher;
 
+    /**
+     * Metatag service.
+     *
+     * @var \Drupal\argo\MetatagService
+     */
+    private $metatagService;
+
   /**
    * The service constructor.
    *
    * @param \Drupal\typed_data\DataFetcherInterface $dataFetcher
    *   Data fetcher.
+   *
+   * @param \Drupal\argo\MetatagService $metatagService
+   *   Metatag service.
    */
   public function __construct(
-    DataFetcherInterface $dataFetcher
+    DataFetcherInterface $dataFetcher,
+    MetatagService $metatagService
   ) {
     $this->dataFetcher = $dataFetcher;
+    $this->metatagService = $metatagService;
   }
 
   /**
@@ -84,8 +97,13 @@ class ContentEntityTranslate {
     }
 
     foreach ($metatags as $propPath => $metatag) {
-      $data = $this->fetchDataByPropertyPath($translatedProperty, $targetEntity, $propPath, $targetLangcode);
-      $data->setValue(serialize($metatag));
+        $data = $this->fetchDataByPropertyPath($translatedProperty, $targetEntity, $propPath, $targetLangcode);
+        if ($this->metatagService->isMetatagV1($data->getValue())) {
+            $serialized = serialize($metatag);
+        } else {
+            $serialized = Json::encode($metatag);
+        }
+        $data->setValue($serialized);
     }
 
     return $targetEntity;

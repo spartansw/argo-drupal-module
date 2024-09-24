@@ -2,6 +2,7 @@
 
 namespace Drupal\argo;
 
+use Drupal\Component\Serialization\Json;
 use Drupal\Core\Config\Entity\ThirdPartySettingsInterface;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityInterface;
@@ -13,10 +14,21 @@ use Drupal\Core\Field\FieldDefinitionInterface;
  */
 class ContentEntityExport {
 
-  /**
-   * Construct.
-   */
-  public function __construct() {
+    /**
+     * Metatag service.
+     *
+     * @var \Drupal\argo\MetatagService
+     */
+    private $metatagService;
+
+    /**
+     * Construct.
+     *
+     * @param \Drupal\argo\MetatagService $metatagService
+     *   Metatag service.
+     */
+  public function __construct(MetatagService $metatagService) {
+      $this->metatagService = $metatagService;
   }
 
   /**
@@ -112,7 +124,11 @@ class ContentEntityExport {
                     $outValue = $value;
                   }
                   elseif ($dataType === 'metatag') {
-                    $metatag = unserialize($value);
+                    if ($this->metatagService->isMetatagV1($value)) {
+                        $metatag = @unserialize($value, ['allowed_classes' => FALSE]);
+                    } else {
+                        $metatag = Json::decode($value);
+                    }
                     foreach ($metatag as $tagName => $tagValue) {
                       if (is_string($tagValue)) {
                         $propertiesOut[] = [
