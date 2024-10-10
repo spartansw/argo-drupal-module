@@ -12,8 +12,8 @@
     "source": "https://github.com/spartansw/argo-drupal-module"
   },
   "require": {
-    "drupal/core": "^9 || ^10",
-    "drupal/typed_data": "^1.0@beta"
+    "drupal/core": "^10 || ^11",
+    "drupal/typed_data": "^2.1"
   },
   "minimum-stability": "dev"
 }
