@@ -9,6 +9,13 @@ use Drupal\locale\StringDatabaseStorage;
  */
 class LocaleService {
 
+    /**
+     * String storage.
+     *
+     * @var \Drupal\Locale\StringDatabaseStorage
+     */
+    protected $stringStorage;
+
   /**
    * Creates a new instance of the Argo locale translation service.
    */
